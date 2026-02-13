@@ -1,0 +1,17 @@
+# Config file for the @EXPORT_TYPE@ treedecomp Package
+# It defines the following variables
+#  TREEDECOMP_INCLUDE_DIRS - include directories for treedecomp
+#  TREEDECOMP_LIBRARIES    - libraries to link against
+
+# Compute paths
+get_filename_component(TREEDECOMP_CMAKE_DIR "${CMAKE_CURRENT_LIST_FILE}" PATH)
+set(TREEDECOMP_INCLUDE_DIRS "@CONF_INCLUDE_DIRS@")
+
+# Our library dependencies (contains definitions for IMPORTED targets)
+include("${TREEDECOMP_CMAKE_DIR}/@TREEDECOMP_TARGETS_FILENAME@")
+
+# These are IMPORTED targets created by @TREEDECOMP_TARGETS_FILENAME@
+set(TREEDECOMP_LIBRARIES treedecomp)
+set(TREEDECOMP_STATIC_LIBRARIES treedecomp)
+set(TREEDECOMP_VERSION_MAJOR @PROJECT_VERSION_MAJOR@)
+set(TREEDECOMP_VERSION_MINOR @PROJECT_VERSION_MINOR@)
