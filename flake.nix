@@ -17,6 +17,7 @@
 
       treedecomp-package =
         {
+          lib,
           stdenv,
           cmake,
         }:

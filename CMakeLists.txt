@@ -221,6 +221,11 @@ install(
     DESTINATION "${TREEDECOMP_INSTALL_CMAKE_DIR}"
 )
 
+install(
+    EXPORT ${TREEDECOMP_EXPORT_NAME}
+    DESTINATION "${TREEDECOMP_INSTALL_CMAKE_DIR}"
+)
+
 # -----------------------------------------------------------------------------
 # Uninstall
 # -----------------------------------------------------------------------------
