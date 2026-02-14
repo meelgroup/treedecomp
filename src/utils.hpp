@@ -28,8 +28,6 @@ THE SOFTWARE.
 #include <cassert>
 #include <algorithm>
 
-#include "treedecomp_defs.hpp"
-
 namespace sspp {
 
 using std::vector;
@@ -46,7 +44,7 @@ void SortAndDedup(vector<T>& vec) {
 
 template<typename T>
 bool binary_search(const std::vector<T>& a, const T x) {
-  SLOW_DEBUG_DO(assert(std::is_sorted(a.begin(), a.end())));
+  /* SLOW_DEBUG_DO(assert(std::is_sorted(a.begin(), a.end()))); */
   return std::binary_search(a.begin(), a.end(), x);
 }
 

@@ -20,13 +20,14 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ***********************************************/
 
-#include "graph.hpp"
-#include "utils.hpp"
 #include <cassert>
 #include <iostream>
 #include <functional>
 #include <fstream>
 #include <set>
+#include "graph.hpp"
+#include "utils.hpp"
+#include "treedecomp_defs.hpp"
 using std::set;
 
 namespace sspp {
