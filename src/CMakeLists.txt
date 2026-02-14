@@ -7,6 +7,7 @@ endif()
 SET(SOURCES
     TreeDecomposition.cpp
     IFlowCutter.cpp
+    graph.cpp
     flow-cutter-pace17/src/tree_decomposition.cpp
     flow-cutter-pace17/src/cell.cpp
     flow-cutter-pace17/src/greedy_order.cpp
@@ -26,7 +27,7 @@ treedecomp_add_public_header(treedecomp ${CMAKE_CURRENT_SOURCE_DIR}/TreeDecompos
 treedecomp_add_public_header(treedecomp ${CMAKE_CURRENT_SOURCE_DIR}/IFlowCutter.hpp)
 treedecomp_add_public_header(treedecomp ${CMAKE_CURRENT_SOURCE_DIR}/bitset.hpp)
 treedecomp_add_public_header(treedecomp ${CMAKE_CURRENT_SOURCE_DIR}/treedecomp_defs.hpp)
-treedecomp_add_public_header(treedecomp ${CMAKE_CURRENT_SOURCE_DIR}/time_mem.hpp)
+treedecomp_add_public_header(treedecomp ${CMAKE_CURRENT_SOURCE_DIR}/graph.hpp)
 
 # -----------------------------------------------------------------------------
 # Copy public headers into build directory include directory.

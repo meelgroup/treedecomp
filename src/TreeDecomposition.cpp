@@ -110,6 +110,11 @@ int TreeDecomposition::centroid(int npvars, int verb) {
   return cent;
 }
 
+bool TreeDecomposition::inBag(int v, int x) const {
+  SLOW_DEBUG_DO(assert(std::is_sorted(bags[v].begin(), bags[v].end())));
+  return std::binary_search(bags[v].begin(), bags[v].end(), x);
+}
+
 int TreeDecomposition::findCentroid(int v, int parent, int &centroid) const {
   int intros = 0;
   for (auto ch : Neighbors(v)) {

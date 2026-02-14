@@ -1,5 +1,5 @@
 /******************************************
-Copyright (C) 2023 Authors of treedecomp
+Copyright (C) 2021 Tuukka Korhonen and Matti Jarvisalo
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -22,17 +22,32 @@ THE SOFTWARE.
 
 #pragma once
 
-/* #define SLOW_DEBUG */
-/* #define VERBOSE_DEBUG */
+#include <vector>
+#include <string>
+#include <iostream>
+#include <cassert>
+#include <algorithm>
 
-#ifdef SLOW_DEBUG
-#define SLOW_DEBUG_DO(x) do { x; } while (0)
-#else
-#define SLOW_DEBUG_DO(x) do { } while (0)
-#endif
+#include "treedecomp_defs.hpp"
 
-#ifdef VERBOSE_DEBUG
-#define VERBOSE_DEBUG_DO(x) do { x; } while (0)
-#else
-#define VERBOSE_DEBUG_DO(x) do { } while (0)
-#endif
+namespace sspp {
+
+using std::vector;
+using std::string;
+using std::cout;
+using std::endl;
+using std::pair;
+
+template<typename T>
+void SortAndDedup(vector<T>& vec) {
+  std::sort(vec.begin(), vec.end());
+  vec.erase(std::unique(vec.begin(), vec.end()), vec.end());
+}
+
+template<typename T>
+bool binary_search(const std::vector<T>& a, const T x) {
+  SLOW_DEBUG_DO(assert(std::is_sorted(a.begin(), a.end())));
+  return std::binary_search(a.begin(), a.end(), x);
+}
+
+}

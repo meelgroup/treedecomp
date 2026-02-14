@@ -25,7 +25,6 @@ THE SOFTWARE.
 #include <vector>
 #include <algorithm>
 #include "bitset.hpp"
-#include "treedecomp_defs.hpp"
 using std::vector;
 
 namespace TWD {
@@ -45,7 +44,7 @@ public:
   void addEdge(int v1, int v2);
   void contract(int v, int max_edges);
   bool hasEdge(int v1, int v2) { return adj_mat[v1].Get(v2); }
-  const std::vector<int> Neighbors(int v) const { return adj_list[v]; }
+  const vector<int> Neighbors(int v) const { return adj_list[v]; }
   bool isConnected() const {
     if (nodes == 0) return true;
     vector<int> visited(nodes, 0);
@@ -64,8 +63,8 @@ public:
 protected:
   int nodes;
   int edges;
-  std::vector<std::vector<int>> adj_list;
-  std::vector<sspp::Bitset> adj_mat;
+  vector<vector<int>> adj_list;
+  vector<sspp::Bitset> adj_mat;
 };
 
 class TreeDecomposition : public Graph {
@@ -73,11 +72,8 @@ public:
   TreeDecomposition();
 
   void initBags() { bags.clear(); bags.resize(nodes); }
-  std::vector<std::vector<int>>& Bags() { return bags; }
-  bool inBag(int v, int x) const {
-    SLOW_DEBUG_DO(assert(std::is_sorted(bags[v].begin(), bags[v].end())));
-    return std::binary_search(bags[v].begin(), bags[v].end(), x);
-  }
+  vector<vector<int>>& Bags() { return bags; }
+  bool inBag(int v, int x) const;
 
   void setWidth(int width) { tw = width; }
   int width() const { return tw; }
@@ -85,7 +81,7 @@ public:
   void setNumGraphNodes(int n) { gnodes = n; }
 
   int centroid(int npvars, int verb = 0);
-  std::vector<int> distanceFromCentroid(int npvars);
+  vector<int> distanceFromCentroid(int npvars);
   double start_time;
 
 private:
@@ -93,9 +89,9 @@ private:
     for (auto& bag: bags) std::sort(bag.begin(), bag.end());
   }
   int findCentroid(int v, int parent, int& centroid) const;
-  void computeDistance(int v, int parent, int depth, std::vector<int>& distance);
+  void computeDistance(int v, int parent, int depth, vector<int>& distance);
 
-  std::vector<std::vector<int>> bags;
+  vector<vector<int>> bags;
   int tw;
   int gnodes;
   int cent = -1;
