@@ -22,7 +22,7 @@ THE SOFTWARE.
 
 #pragma once
 
-#define SLOW_DEBUG
+/* #define SLOW_DEBUG */
 /* #define VERBOSE_DEBUG */
 
 #ifdef SLOW_DEBUG

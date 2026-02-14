@@ -93,6 +93,8 @@ Bitset Graph::Neighbors(const Bitset& vs) const {
 }
 
 void Graph::addEdge(int v, int u) {
+  SLOW_DEBUG_DO(assert(v >= 0 && v < n_));
+  SLOW_DEBUG_DO(assert(u >= 0 && u < n_));
   if (HasEdge(v, u)) return;
   assert(v != u);
   m_++;
