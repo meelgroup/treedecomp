@@ -62,6 +62,7 @@ void Graph::clear()
   adj_list.clear();
   adj_mat.clear();
 }
+
 void Graph::addEdge(int v1, int v2)
 {
   SLOW_DEBUG_DO(assert(v1 >= 0 && v1 < nodes));
