@@ -21,8 +21,6 @@ THE SOFTWARE.
 ***********************************************/
 
 #include "graph.hpp"
-#include "treedecomp_defs.hpp"
-/* #include "common.hpp" */
 #include "utils.hpp"
 #include <cassert>
 #include <iostream>

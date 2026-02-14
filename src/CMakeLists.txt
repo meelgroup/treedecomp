@@ -25,6 +25,7 @@ set_target_properties(treedecomp PROPERTIES
 
 treedecomp_add_public_header(treedecomp ${CMAKE_CURRENT_SOURCE_DIR}/TreeDecomposition.hpp)
 treedecomp_add_public_header(treedecomp ${CMAKE_CURRENT_SOURCE_DIR}/IFlowCutter.hpp)
+treedecomp_add_public_header(treedecomp ${CMAKE_CURRENT_SOURCE_DIR}/utils.hpp)
 treedecomp_add_public_header(treedecomp ${CMAKE_CURRENT_SOURCE_DIR}/bitset.hpp)
 treedecomp_add_public_header(treedecomp ${CMAKE_CURRENT_SOURCE_DIR}/treedecomp_defs.hpp)
 treedecomp_add_public_header(treedecomp ${CMAKE_CURRENT_SOURCE_DIR}/graph.hpp)
