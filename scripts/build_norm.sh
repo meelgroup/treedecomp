@@ -1,4 +1,4 @@
 rm -rf .cmake CMake* src cmake* Make*
-cmake -DENABLE_TESTING=ON ..
+cmake ..
 make -j12
 make test
