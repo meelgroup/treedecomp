@@ -37,14 +37,14 @@ public:
   void init(int n);
   void clear();
 
-  int numNodes() { return nodes; }
-  int numEdges() { return edges; }
+  int numNodes() const { return nodes; }
+  int numEdges() const { return edges; }
 
   const vector<vector<int>>& get_adj_list() const;
   void addEdge(int v1, int v2);
   void contract(int v, int max_edges);
   bool hasEdge(int v1, int v2) { return adj_mat[v1].Get(v2); }
-  const vector<int> Neighbors(int v) const { return adj_list[v]; }
+  const vector<int>& Neighbors(int v) const { return adj_list[v]; }
   bool isConnected() const {
     if (nodes == 0) return true;
     vector<int> visited(nodes, 0);

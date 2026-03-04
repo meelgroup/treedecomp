@@ -92,7 +92,6 @@ private:
   vector<vector<int>> bags;
   void OdDes(int b, int p, int d, vector<int>& ret, vector<int>& bagDepths) const;
   int CenDfs(int x, int p, int& cen) const;
-  bool dfs(int x, int v, int p, vector<int>& u) const;
   bool bagsConnected(int start) const {
     if (nBags == 0) return true;
     vector<int> visited(nBags, 0);

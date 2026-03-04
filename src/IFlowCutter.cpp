@@ -30,13 +30,6 @@
  *      Author: k-hasimt
  */
 
-//#include "flow-cutter-pace17/src/id_func.hpp"
-//#include "flow-cutter-pace17/src/list_graph.hpp"
-/* #include "flow-cutter-pace17/src/multi_arc.hpp" */
-//#include "flow-cutter-pace17/src/sort_arc.hpp"
-//#include "flow-cutter-pace17/src/chain.hpp"
-/* #include "flow-cutter-pace17/src/union_find.hpp" */
-//#include "flow-cutter-pace17/src/node_flow_cutter.hpp"
 #include "flow-cutter-pace17/src/separator.hpp"
 #include "flow-cutter-pace17/src/id_multi_func.hpp"
 #include "flow-cutter-pace17/src/filter.hpp"
@@ -51,16 +44,8 @@
 #include "TreeDecomposition.hpp"
 #include "time_mem.hpp"
 
-// #include <limits>
-// #include <signal.h>
-// #include <stdlib.h>
-// #include <string.h>
-// #include <string>
-// #include <sstream>
 #include <queue>
-
 #include <sys/time.h>
-// #include <unistd.h>
 
 #include <iostream>
 using namespace std;
@@ -88,8 +73,6 @@ void IFlowCutter::importGraph(const Graph& g)
       next_arc++;
     }
 }
-
-void ignore_return_value(long long){}
 
 // This hack is actually standard compilant
 template <class T, class S, class C>
@@ -501,8 +484,8 @@ TreeDecomposition IFlowCutter::output_tree_decompostion_of_order(
   better_td.setWidth(maximum_bag_size-1);
   better_td.setNumGraphNodes(node_count);
   if (verb > 0) {
-  cout << "c o [td] #bags " << bag_count << ", tw " << maximum_bag_size
-      << ", elapsed " << (cpu_time()-start_time)  << " s"<< endl; // << endl;// << ", #vars " << node_count << endl;
+    cout << "c o [td] #bags " << bag_count << ", tw " << maximum_bag_size
+        << ", elapsed " << (cpu_time()-start_time) << " s" << endl;
   }
   better_td.initBags();
 
@@ -590,9 +573,8 @@ TreeDecomposition IFlowCutter::output_tree_decompostion_of_multilevel_partition(
   better_td.setNumGraphNodes(get_node_count_of_multilevel_partition(cell_list));
   if (verb > 0)
     cout << "c o [td] #bags " << bag_count
-      << " tw " << get_treewidth_of_multilevel_partition(cell_list)-1
-      << " elapsed " << cpu_time()-start_time  << " s"
-      << endl; // << ", #vars " << get_node_count_of_multilevel_partition(cell_list) << endl;
+        << " tw " << get_treewidth_of_multilevel_partition(cell_list)-1
+        << " elapsed " << cpu_time()-start_time << " s" << endl;
   better_td.initBags();
 
   for(int i=0; i<bag_count; ++i) {
@@ -617,7 +599,6 @@ TreeDecomposition IFlowCutter::constructTD(const int64_t conf_steps, const int c
   ArrayIDIDFunc preorder, inv_preorder;
   double t = cpu_time();
 
-  /* int random_seed = 0; */
   try{
     {
       preorder = compute_preorder(compute_successor_function(tail, head));
@@ -638,13 +619,9 @@ TreeDecomposition IFlowCutter::constructTD(const int64_t conf_steps, const int c
 
     auto on_new_multilevel_partition = [&](const std::vector<Cell>&multilevel_partition, bool /*must_print*/){
       int tw = get_treewidth_of_multilevel_partition(multilevel_partition);
-      {
-        /* update best tree decomposition*/
-        td = output_tree_decompostion_of_multilevel_partition(tail, head, preorder, multilevel_partition);
-        best_bag_size = tw;
-      }
+      td = output_tree_decompostion_of_multilevel_partition(tail, head, preorder, multilevel_partition);
+      best_bag_size = tw;
     };
-
 
     {
       try{
@@ -684,9 +661,6 @@ TreeDecomposition IFlowCutter::constructTD(const int64_t conf_steps, const int c
           config.separator_selection = flow_cutter::Config::SeparatorSelection::node_min_expansion;
 
           for(int i=2; i < conf_iters && steps > 0;++i){
-            /* cout << "nodes: " << nodes << " preimage count: " << head.preimage_count_ */
-            /*   << " mul: " << ((int64_t)nodes * std::sqrt((int64_t)head.preimage_count_))/50 */
-            /*   << endl; */
             steps -= (std::sqrt((int64_t)nodes) * std::sqrt((int64_t)head.preimage_count_))/50;
             config.random_seed = rand_gen();
             if(i % 10 == 0) ++config.cutter_count;
