@@ -20,18 +20,6 @@
 
 cmake_minimum_required(VERSION 3.12 FATAL_ERROR)
 
-if(POLICY CMP0048)
-    cmake_policy(SET CMP0048 NEW)
-endif()
-
-if(POLICY CMP0022)
-    cmake_policy(SET CMP0022 NEW)
-endif()
-
-if(POLICY CMP0046)
-    cmake_policy(SET CMP0046 NEW)
-endif()
-
 # -----------------------------------------------------------------------------
 # Make RelWithDebInfo the default build type if otherwise not set
 # -----------------------------------------------------------------------------
@@ -49,9 +37,9 @@ message(STATUS "Doing a ${CMAKE_BUILD_TYPE} build")
 # -----------------------------------------------------------------------------
 # Option to enable/disable assertions
 # -----------------------------------------------------------------------------
-foreach (build_config ${build_types})
+foreach(build_config ${build_types})
     string(TOUPPER ${build_config} upper_case_build_config)
-    foreach (language CXX C)
+    foreach(language CXX C)
         set(VAR_TO_MODIFY "CMAKE_${language}_FLAGS_${upper_case_build_config}")
         string(REGEX REPLACE "(^| )[/-]D *NDEBUG($| )"
                              " "
@@ -65,28 +53,30 @@ project(treedecomp)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-enable_language(CXX)
 include(GenerateExportHeader)
 include(GNUInstallDirs)
+
+message(STATUS "LIB directory is '${CMAKE_INSTALL_LIBDIR}'")
+message(STATUS "BIN directory is '${CMAKE_INSTALL_BINDIR}'")
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
 
 # static compilation
 option(BUILD_SHARED_LIBS "Build the shared library" ON)
 option(STATICCOMPILE "Compile to static executable" OFF)
-if (STATICCOMPILE)
+if(STATICCOMPILE)
     set(BUILD_SHARED_LIBS OFF)
 endif()
 
-if ((${CMAKE_SYSTEM_NAME} MATCHES "Linux") OR (${CMAKE_SYSTEM_NAME} MATCHES "Darwin"))
+if((${CMAKE_SYSTEM_NAME} MATCHES "Linux") OR (${CMAKE_SYSTEM_NAME} MATCHES "Darwin"))
     if(NOT BUILD_SHARED_LIBS)
-        MESSAGE(STATUS "Compiling statically")
-        if (${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+        message(STATUS "Compiling statically")
+        if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
             set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
         endif()
-        SET(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
+        set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
     else()
-        MESSAGE(STATUS "Compiling for dynamic library use")
+        message(STATUS "Compiling for dynamic library use")
     endif()
 endif()
 
@@ -97,41 +87,40 @@ include(CheckCXXCompilerFlag)
 macro(add_cxx_flag_if_supported flagname)
   check_cxx_compiler_flag("${flagname}" HAVE_FLAG_${flagname})
   if(HAVE_FLAG_${flagname})
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${flagname}" )
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${flagname}")
   endif()
 endmacro()
 
-if (NOT MSVC)
+if(NOT MSVC)
     add_compile_options(-g)
     add_compile_options("$<$<CONFIG:RelWithDebInfo>:-O3>")
     add_compile_options("$<$<CONFIG:Release>:-O3>")
     add_compile_options("$<$<CONFIG:Release>:-g0>")
-    add_compile_options("$<$<CONFIG:Release>:-DNDEBUG>")
     add_compile_options("$<$<CONFIG:Debug>:-O0>")
 
     foreach(flag_var CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG)
         if(${flag_var} MATCHES "-O3")
             string(REGEX REPLACE "-O3" "-O0" ${flag_var} "${${flag_var}}")
-        endif(${flag_var} MATCHES "-O3")
+        endif()
         if(${flag_var} MATCHES "-O2")
             string(REGEX REPLACE "-O2" "-O0" ${flag_var} "${${flag_var}}")
-        endif(${flag_var} MATCHES "-O2")
-    endforeach(flag_var)
+        endif()
+    endforeach()
 endif()
 
 option(ENABLE_ASSERTIONS "Build with assertions enabled" ON)
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
     set(ENABLE_ASSERTIONS OFF)
 endif()
-if (ENABLE_ASSERTIONS)
+if(ENABLE_ASSERTIONS)
     # NDEBUG was already removed.
 else()
-    add_definitions(-DNDEBUG)
+    add_compile_definitions(NDEBUG)
     add_cxx_flag_if_supported("-fno-stack-protector")
-    add_definitions(-D_FORTIFY_SOURCE=0)
+    add_compile_definitions(_FORTIFY_SOURCE=0)
 endif()
 
-if (NOT WIN32)
+if(NOT WIN32)
     add_cxx_flag_if_supported("-mpopcnt")
     add_cxx_flag_if_supported("-msse4.2")
     if(NOT CMAKE_BUILD_TYPE STREQUAL "Release")
@@ -165,10 +154,6 @@ macro(treedecomp_add_public_header LIBTARGET HEADER)
      )
 endmacro()
 
-set(DEF_INSTALL_CMAKE_DIR lib/cmake/treedecomp)
-set(TREEDECOMP_INSTALL_CMAKE_DIR ${DEF_INSTALL_CMAKE_DIR} CACHE PATH
-    "Installation directory for treedecomp CMake files")
-
 # -----------------------------------------------------------------------------
 # Version
 # -----------------------------------------------------------------------------
@@ -178,15 +163,16 @@ list(GET TREEDECOMP_FULL_VERSION_LIST 0 PROJECT_VERSION_MAJOR)
 list(GET TREEDECOMP_FULL_VERSION_LIST 1 PROJECT_VERSION_MINOR)
 list(GET TREEDECOMP_FULL_VERSION_LIST 2 PROJECT_VERSION_PATCH)
 set(PROJECT_VERSION "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}")
-
-add_subdirectory(src)
+message(STATUS "PROJECT_VERSION: ${PROJECT_VERSION}")
 
 # -----------------------------------------------------------------------------
-# Export
+# Provide an export name to be used by targets that wish to export themselves.
 # -----------------------------------------------------------------------------
 set(TREEDECOMP_EXPORT_NAME "treedecompTargets")
 set(TREEDECOMP_TARGETS_FILENAME "treedecompTargets.cmake")
 set(TREEDECOMP_CONFIG_FILENAME "treedecompConfig.cmake")
+
+add_subdirectory(src)
 
 # Export targets
 export(
@@ -201,6 +187,8 @@ configure_file(treedecompConfig.cmake.in
     "${CMAKE_CURRENT_BINARY_DIR}/${TREEDECOMP_CONFIG_FILENAME}" @ONLY
 )
 
+# Export this package to the CMake user package registry
+# Now the user can just use find_package(treedecomp) on their system
 export(PACKAGE treedecomp)
 
 # Create config file for install tree
@@ -209,6 +197,10 @@ set(CONF_INCLUDE_DIRS "${CMAKE_INSTALL_PREFIX}/include")
 configure_file(treedecompConfig.cmake.in
    "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_FILES_DIRECTORY}/${TREEDECOMP_CONFIG_FILENAME}" @ONLY
 )
+
+set(DEF_INSTALL_CMAKE_DIR lib/cmake/treedecomp)
+set(TREEDECOMP_INSTALL_CMAKE_DIR ${DEF_INSTALL_CMAKE_DIR} CACHE PATH
+    "Installation directory for treedecomp CMake files")
 
 install(FILES
     "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_FILES_DIRECTORY}/${TREEDECOMP_CONFIG_FILENAME}"

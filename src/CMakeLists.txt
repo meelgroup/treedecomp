@@ -1,10 +1,8 @@
-include_directories(${CMAKE_CURRENT_SOURCE_DIR})
-
-if (NOT WIN32)
+if(NOT WIN32)
     add_cxx_flag_if_supported("-Wno-class-memaccess")
 endif()
 
-SET(SOURCES
+set(SOURCES
     TreeDecomposition.cpp
     IFlowCutter.cpp
     graph.cpp
@@ -13,10 +11,16 @@ SET(SOURCES
     flow-cutter-pace17/src/greedy_order.cpp
 )
 
-ADD_LIBRARY(treedecomp ${SOURCES})
+add_library(treedecomp ${SOURCES})
+
+target_include_directories(treedecomp
+  PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${PROJECT_SOURCE_DIR}
+    ${CMAKE_CURRENT_BINARY_DIR}
+)
 
 set_target_properties(treedecomp PROPERTIES
-  PUBLIC_HEADER "${treedecomp_public_headers}"
   VERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
   SOVERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
   RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}
@@ -30,13 +34,16 @@ treedecomp_add_public_header(treedecomp ${CMAKE_CURRENT_SOURCE_DIR}/bitset.hpp)
 treedecomp_add_public_header(treedecomp ${CMAKE_CURRENT_SOURCE_DIR}/treedecomp_defs.hpp)
 treedecomp_add_public_header(treedecomp ${CMAKE_CURRENT_SOURCE_DIR}/graph.hpp)
 
+# Public headers are fully known now; the CopyPublicHeaders target below reads
+# this property, so it must be set before that target is created.
+get_target_property(treedecomp_public_headers treedecomp PUBLIC_HEADER)
+
 # -----------------------------------------------------------------------------
 # Copy public headers into build directory include directory.
 # The treedecompConfig.cmake we generate in the build directory depends on this.
 # -----------------------------------------------------------------------------
 set(HEADER_DEST "${PROJECT_BINARY_DIR}/include/treedecomp")
 add_custom_target(CopyPublicHeaders ALL)
-get_target_property(treedecomp_public_headers treedecomp PUBLIC_HEADER)
 foreach(public_header ${treedecomp_public_headers})
     get_filename_component(HEADER_NAME ${public_header} NAME)
     add_custom_command(TARGET CopyPublicHeaders PRE_BUILD
