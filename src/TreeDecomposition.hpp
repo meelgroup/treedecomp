@@ -74,14 +74,11 @@ public:
   void initBags() { bags.clear(); bags.resize(nodes); }
   vector<vector<int>>& Bags() { return bags; }
   bool inBag(int v, int x) const;
-
   void setWidth(int width) { tw = width; }
   int width() const { return tw; }
-
   void setNumGraphNodes(int n) { gnodes = n; }
-
-  int centroid(int npvars, int verb = 0);
-  vector<int> distanceFromCentroid(int npvars);
+  int centroid(int verb = 0);
+  vector<int> distanceFromCentroid();
   double start_time;
 
 private:
