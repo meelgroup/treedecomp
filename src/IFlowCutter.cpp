@@ -593,7 +593,7 @@ TreeDecomposition IFlowCutter::output_tree_decompostion_of_multilevel_partition(
   return better_td;
 }
 
-TreeDecomposition IFlowCutter::constructTD(const int64_t conf_steps, const int conf_iters)
+TreeDecomposition IFlowCutter::constructTD(const int64_t conf_steps, int conf_iters)
 {
   TreeDecomposition td;
   ArrayIDIDFunc preorder, inv_preorder;
@@ -674,7 +674,14 @@ TreeDecomposition IFlowCutter::constructTD(const int64_t conf_steps, const int c
 
             compute_multilevel_partition(tail, head, flow_cutter::ComputeSeparator(config), best_bag_size, on_new_multilevel_partition);
 
-            if (i % 100 == 99 || steps < next_step_print) {
+            if (td.width() <= 15 && i >= 50 && i % 50 == 0) {
+                conf_iters /= 2;
+                if (verb) {
+                  cout << "c o [td] at iter " << i << "  Width is small, reducing conf_iters to " << conf_iters << endl;
+                }
+            }
+
+            if ((i % 100 == 0 && i > 0) || steps < next_step_print) {
               if (verb) {
                 cout << "c o [td] iter " << i << " width: " << td.width()
                   << " stepsK remain: " << steps/1000 << " T: " << (cpu_time()-t) << endl;
