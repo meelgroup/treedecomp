@@ -179,30 +179,40 @@ export(
     FILE "${CMAKE_CURRENT_BINARY_DIR}/${TREEDECOMP_TARGETS_FILENAME}"
 )
 
-# Create config file for build tree
-set(EXPORT_TYPE "Build-tree")
-set(CONF_INCLUDE_DIRS "${CMAKE_CURRENT_BINARY_DIR}/include")
-configure_file(treedecompConfig.cmake.in
-    "${CMAKE_CURRENT_BINARY_DIR}/${TREEDECOMP_CONFIG_FILENAME}" @ONLY
+# Build-tree config (absolute paths, for use without installation)
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/treedecompConfig-buildtree.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/${TREEDECOMP_CONFIG_FILENAME}"
+    @ONLY
 )
 
 # Export this package to the CMake user package registry
 # Now the user can just use find_package(treedecomp) on their system
 export(PACKAGE treedecomp)
 
-# Create config file for install tree
-set(EXPORT_TYPE "installed")
-set(CONF_INCLUDE_DIRS "${CMAKE_INSTALL_PREFIX}/include")
-configure_file(treedecompConfig.cmake.in
-   "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_FILES_DIRECTORY}/${TREEDECOMP_CONFIG_FILENAME}" @ONLY
-)
-
+# Install-tree config and version files (relocatable via CMakePackageConfigHelpers)
 set(DEF_INSTALL_CMAKE_DIR lib/cmake/treedecomp)
 set(TREEDECOMP_INSTALL_CMAKE_DIR ${DEF_INSTALL_CMAKE_DIR} CACHE PATH
     "Installation directory for treedecomp CMake files")
+set(TREEDECOMP_INSTALL_INCLUDEDIR "${CMAKE_INSTALL_INCLUDEDIR}")
+set(TREEDECOMP_VERSION_FILENAME "treedecompConfigVersion.cmake")
+
+include(CMakePackageConfigHelpers)
+configure_package_config_file(treedecompConfig.cmake.in
+    "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_FILES_DIRECTORY}/${TREEDECOMP_CONFIG_FILENAME}"
+    INSTALL_DESTINATION "${TREEDECOMP_INSTALL_CMAKE_DIR}"
+    PATH_VARS TREEDECOMP_INSTALL_INCLUDEDIR
+)
+
+write_basic_package_version_file(
+    "${CMAKE_CURRENT_BINARY_DIR}/${TREEDECOMP_VERSION_FILENAME}"
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY SameMajorVersion
+)
 
 install(FILES
     "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_FILES_DIRECTORY}/${TREEDECOMP_CONFIG_FILENAME}"
+    "${CMAKE_CURRENT_BINARY_DIR}/${TREEDECOMP_VERSION_FILENAME}"
     DESTINATION "${TREEDECOMP_INSTALL_CMAKE_DIR}"
 )
 

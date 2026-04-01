@@ -660,6 +660,7 @@ TreeDecomposition IFlowCutter::constructTD(const int64_t conf_steps, int conf_it
           config.max_cut_size = 10000;
           config.separator_selection = flow_cutter::Config::SeparatorSelection::node_min_expansion;
 
+          bool reduced = false;
           for(int i=2; i < conf_iters && steps > 0;++i){
             steps -= (std::sqrt((int64_t)nodes) * std::sqrt((int64_t)head.preimage_count_))/50;
             config.random_seed = rand_gen();
@@ -674,12 +675,6 @@ TreeDecomposition IFlowCutter::constructTD(const int64_t conf_steps, int conf_it
 
             compute_multilevel_partition(tail, head, flow_cutter::ComputeSeparator(config), best_bag_size, on_new_multilevel_partition);
 
-            if (td.width() <= 15 && i >= 50 && i % 50 == 0) {
-                conf_iters /= 2;
-                if (verb) {
-                  cout << "c o [td] at iter " << i << "  Width is small, reducing conf_iters to " << conf_iters << endl;
-                }
-            }
 
             if ((i % 100 == 0 && i > 0) || steps < next_step_print) {
               if (verb) {
@@ -688,6 +683,25 @@ TreeDecomposition IFlowCutter::constructTD(const int64_t conf_steps, int conf_it
               }
               next_step_print -= 1e5;
             }
+
+            if (!reduced && i >= 100) {
+                if (td.width() <= 15) {
+                    conf_iters /= 4;
+                    reduced = true;
+                    if (verb) {
+                      cout << "c o [td] at iter " << i << "  Width is small, reducing conf_iters to " << conf_iters << endl;
+                    }
+                }
+                if (td.width() <= 20) {
+                    reduced = true;
+                    steps /= 4;
+                    if (verb) {
+                      cout << "c o [td] at iter " << i << " Width is very small, halving steps " << endl;
+                    }
+                }
+            }
+
+
           }
         }
       }catch(...){

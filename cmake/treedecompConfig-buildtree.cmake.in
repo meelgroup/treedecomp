@@ -1,11 +1,7 @@
-# Config file for the treedecomp package.
-@PACKAGE_INIT@
-
-set_and_check(TREEDECOMP_INCLUDE_DIRS "@PACKAGE_TREEDECOMP_INSTALL_INCLUDEDIR@")
+# Config file for the Build-tree treedecomp package (not relocatable).
+set(TREEDECOMP_INCLUDE_DIRS "@CMAKE_CURRENT_BINARY_DIR@/include")
 include("${CMAKE_CURRENT_LIST_DIR}/treedecompTargets.cmake")
 set(TREEDECOMP_LIBRARIES treedecomp)
 set(TREEDECOMP_STATIC_LIBRARIES treedecomp)
 set(TREEDECOMP_VERSION_MAJOR @PROJECT_VERSION_MAJOR@)
 set(TREEDECOMP_VERSION_MINOR @PROJECT_VERSION_MINOR@)
-
-check_required_components(treedecomp)
