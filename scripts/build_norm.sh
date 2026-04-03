@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-rm -rf .cmake CMake* src cmake* Make*
+rm -rf .cmake
+rm -rf CMake*
+rm -rf src
+rm -rf cmake*
+rm -rf Make*
 cmake ..
 make -j$(nproc)
