@@ -65,10 +65,6 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
 
 # static compilation
 option(BUILD_SHARED_LIBS "Build the shared library" ON)
-option(STATICCOMPILE "Compile to static executable" OFF)
-if(STATICCOMPILE)
-    set(BUILD_SHARED_LIBS OFF)
-endif()
 
 if((${CMAKE_SYSTEM_NAME} MATCHES "Linux") OR (${CMAKE_SYSTEM_NAME} MATCHES "Darwin"))
     if(NOT BUILD_SHARED_LIBS)
