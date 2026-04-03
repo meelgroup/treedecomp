@@ -2,6 +2,7 @@
 #define CELL_H
 
 #include <vector>
+#include <cstddef>
 
 struct Cell{
 	std::vector<int>separator_node_list;
