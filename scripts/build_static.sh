@@ -1,5 +1,5 @@
 #!/bin/bash
 
 rm -rf .cmake CMake* src cmake* Make*
-cmake -DSTATICCOMPILE=ON ..
+cmake -DBUILD_SHARED_LIBS=OFF ..
 make -j$(nproc)
