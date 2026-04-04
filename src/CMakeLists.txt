@@ -43,10 +43,10 @@ get_target_property(treedecomp_public_headers treedecomp PUBLIC_HEADER)
 # The treedecompConfig.cmake we generate in the build directory depends on this.
 # -----------------------------------------------------------------------------
 set(HEADER_DEST "${PROJECT_BINARY_DIR}/include/treedecomp")
-add_custom_target(CopyPublicHeaders ALL)
+add_custom_target(CopyPublicHeaders_treedecomp ALL)
 foreach(public_header ${treedecomp_public_headers})
     get_filename_component(HEADER_NAME ${public_header} NAME)
-    add_custom_command(TARGET CopyPublicHeaders PRE_BUILD
+    add_custom_command(TARGET CopyPublicHeaders_treedecomp PRE_BUILD
                        COMMAND ${CMAKE_COMMAND} -E make_directory
                                "${HEADER_DEST}"
                        COMMAND ${CMAKE_COMMAND} -E echo
@@ -63,7 +63,7 @@ set(FC_HEADER_DEST "${PROJECT_BINARY_DIR}/include/treedecomp/flow-cutter-pace17/
 file(GLOB FC_HEADERS "${CMAKE_CURRENT_SOURCE_DIR}/flow-cutter-pace17/src/*.hpp")
 foreach(fc_header ${FC_HEADERS})
     get_filename_component(HEADER_NAME ${fc_header} NAME)
-    add_custom_command(TARGET CopyPublicHeaders PRE_BUILD
+    add_custom_command(TARGET CopyPublicHeaders_treedecomp PRE_BUILD
                        COMMAND ${CMAKE_COMMAND} -E make_directory
                                "${FC_HEADER_DEST}"
                        COMMAND ${CMAKE_COMMAND} -E
