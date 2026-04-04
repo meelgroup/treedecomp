@@ -25,11 +25,12 @@ THE SOFTWARE.
 #include <vector>
 #include <algorithm>
 #include "bitset.hpp"
+#include "treedecomp_export.hpp"
 using std::vector;
 
 namespace TWD {
 
-class Graph {
+class TREEDECOMP_PUBLIC Graph {
 public:
   Graph() : nodes(0), edges(0) { }
   Graph(int vars);
@@ -67,7 +68,7 @@ protected:
   vector<sspp::Bitset> adj_mat;
 };
 
-class TreeDecomposition : public Graph {
+class TREEDECOMP_PUBLIC TreeDecomposition : public Graph {
 public:
   TreeDecomposition();
 

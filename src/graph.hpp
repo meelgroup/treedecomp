@@ -24,6 +24,7 @@ THE SOFTWARE.
 
 #include "utils.hpp"
 #include "bitset.hpp"
+#include "treedecomp_export.hpp"
 
 namespace sspp {
 
@@ -45,7 +46,7 @@ private:
 
 using Edge = pair<int, int>;
 
-class Graph {
+class TREEDECOMP_PUBLIC Graph {
 public:
   explicit Graph(int n);
   explicit Graph(vector<Edge> edges);
@@ -71,7 +72,7 @@ private:
   vector<Bitset> adj_mat2_;
 };
 
-class TreeDecomposition {
+class TREEDECOMP_PUBLIC TreeDecomposition {
 public:
   explicit TreeDecomposition(int nBags, int nVars);
   const vector<int>& neighbor_bags(int b) const;

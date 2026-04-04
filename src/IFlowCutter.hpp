@@ -39,7 +39,7 @@
 
 namespace TWD {
 
-class IFlowCutter {
+class TREEDECOMP_PUBLIC IFlowCutter {
 public:
   IFlowCutter(int n, int m, int verb = 0);
 
