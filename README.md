@@ -59,10 +59,12 @@ p cnf 7 8
 2 4 6 0
 -5 -6 7 0
 
-$ ./build/treedecomp example.cnf
+$ ./build/treedecomp --tdvis example.dot example.cnf
 c parsed nvars=7 clauses=8
 c primal nodes=7 edges=13 density=0.265306 edge/var=1.85714
 c TD width: 3
+c centroid bag: 2
+c wrote DOT file: example.dot (render: dot -Tpdf example.dot -o td.pdf)
 1 0
 2 100
 3 50
@@ -77,6 +79,20 @@ Each output line is `<variable> <score>`: column 1 is the CNF variable id
 variable sits closer to the centroid of the tree decomposition — in this
 run, vars 2, 4, 5, 6 are central (score 100), vars 3 and 7 are one step
 out, and var 1 is farthest (score 0).
+
+Passing `--tdvis <file>` writes the tree decomposition as a Graphviz DOT
+file, with one node per bag (labeled with its size and the CNF variables it
+contains). Render it to an image with:
+
+```
+$ dot -Tpng example.dot -o example.png
+```
+
+The resulting tree for the CNF above has 4 bags of width 3 (i.e. 4
+variables each); bag 2 `{2, 4, 5, 6}` is reported as the centroid and is
+highlighted in the rendered graph:
+
+![tree decomposition of example.cnf](example.png)
 
 ### Usage
 
@@ -100,6 +116,7 @@ up with what ganak computes on the same instance:
 | `--tdmaxedgeratio N` | skip TD if edge/var ratio > N |
 | `--tdvarlim N`       | skip TD if #vars > N |
 | `--tdcontract 0/1`   | contract high-numbered vars before running TD |
+| `--tdvis FILE`       | write the tree decomposition as a Graphviz DOT file |
 | `-v N`               | verbosity |
 
 The binary links against the `treedecomp` library and uses `argparse.hpp` for

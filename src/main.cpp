@@ -37,7 +37,33 @@ struct Config {
 
   int verb = 1;
   string input;
+  string dot_file;
 };
+
+static void write_dot(const string& fname, TWD::TreeDecomposition& td, int centroid) {
+  std::ofstream out(fname);
+  if (!out) { cerr << "ERROR: cannot write '" << fname << "'" << endl; exit(1); }
+  const auto& bags = td.Bags();
+  const auto& adj = td.get_adj_list();
+  out << "graph TD {\n";
+  out << "  node [shape=box, fontname=\"Courier\"];\n";
+  for (size_t i = 0; i < bags.size(); i++) {
+    out << "  b" << i << " [label=\"bag " << i
+        << ((int)i == centroid ? " (centroid)" : "")
+        << "\\nsize " << bags[i].size() << "\\n{";
+    for (size_t j = 0; j < bags[i].size(); j++) {
+      if (j) out << ", ";
+      out << (bags[i][j] + 1);
+    }
+    out << "}\"";
+    if ((int)i == centroid) out << ", style=filled, fillcolor=\"#ffd27a\"";
+    out << "];\n";
+  }
+  for (size_t i = 0; i < adj.size(); i++)
+    for (int nb : adj[i])
+      if ((int)i < nb) out << "  b" << i << " -- b" << nb << ";\n";
+  out << "}\n";
+}
 
 static vector<vector<int>> read_cnf(const string& fname, int& nvars) {
   std::istream* in = nullptr;
@@ -123,6 +149,10 @@ int main(int argc, char** argv) {
   add_int("--tdvarlim", conf.td_varlim, "Skip TD if nvars exceeds this");
   add_int("--tdcontract", conf.do_td_contract, "Contract high-numbered vars before running TD");
   add_int("-v", conf.verb, "Verbosity");
+  program.add_argument("--tdvis")
+      .action([&](const auto& a){ conf.dot_file = a; })
+      .default_value(string(""))
+      .help("Write tree decomposition as a Graphviz DOT file to this path");
   program.add_argument("input")
       .action([&](const auto& a){ conf.input = a; })
       .default_value(string("-"))
@@ -176,8 +206,17 @@ int main(int argc, char** argv) {
   const int tw = td.width();
   if (conf.verb >= 1) cout << "c TD width: " << tw << endl;
 
+  const int centroid = td.centroid(conf.verb);
+  if (conf.verb >= 1) cout << "c centroid bag: " << centroid << endl;
+
+  if (!conf.dot_file.empty()) {
+    write_dot(conf.dot_file, td, centroid);
+    if (conf.verb >= 1)
+      cout << "c wrote DOT file: " << conf.dot_file
+           << " (render: dot -Tpdf " << conf.dot_file << " -o td.pdf)" << endl;
+  }
+
   // per-variable score via centroid-distance (compute_td_score_using_raw path)
-  td.centroid(conf.verb);
   auto dists = td.distanceFromCentroid();
   vector<double> tdscore(nvars, 0.0);
   if (!dists.empty()) {
