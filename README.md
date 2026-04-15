@@ -45,31 +45,38 @@ decomposition (this is the `compute_td_score_using_raw` path from ganak's
 
 ### Example
 
-A small path-like CNF:
+A small CNF with a mix of ternary clauses:
 
 ```
 $ cat example.cnf
-p cnf 5 4
-1 2 0
-2 3 0
-3 4 0
-4 5 0
+p cnf 7 8
+1 2 3 0
+2 3 4 0
+3 4 5 0
+-4 5 6 0
+5 6 7 0
+-1 3 5 0
+2 4 6 0
+-5 -6 7 0
 
 $ ./build/treedecomp example.cnf
-c parsed nvars=5 clauses=4
-c primal nodes=5 edges=4 density=0.16 edge/var=0.8
-c TD width: 1
+c parsed nvars=7 clauses=8
+c primal nodes=7 edges=13 density=0.265306 edge/var=1.85714
+c TD width: 3
 1 0
-2 50
-3 100
+2 100
+3 50
 4 100
-5 50
+5 100
+6 100
+7 50
 ```
 
-Each output line is `<variable> <score>`: column 1 is the CNF variable id,
-column 2 is its TD score in `0..100`. Here variables 3 and 4 sit at the
-centroid of the decomposition (score 100); the leaves 1 and 5 are farthest
-(score 0 and 50).
+Each output line is `<variable> <score>`: column 1 is the CNF variable id
+(1-indexed), column 2 is its TD score in `0..100`. Higher means the
+variable sits closer to the centroid of the tree decomposition — in this
+run, vars 2, 4, 5, 6 are central (score 100), vars 3 and 7 are one step
+out, and var 1 is farthest (score 0).
 
 ### Usage
 
