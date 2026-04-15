@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Tree Decomposition in your browser">
+    <meta name="author" content="Mate Soos">
+    <title>Tree Decomposition in your browser</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.5;
+        }
+        .container { display: flex; flex-direction: column; gap: 16px; }
+        textarea {
+            width: 100%;
+            height: 180px;
+            padding: 10px;
+            box-sizing: border-box;
+            font-family: monospace;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 15px;
+        }
+        button:hover { background-color: #45a049; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        #output, #dot-src {
+            border: 1px solid #ddd;
+            padding: 12px;
+            white-space: pre-wrap;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+            font-family: monospace;
+            overflow: auto;
+            max-height: 350px;
+        }
+        #graph {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            background-color: #fff;
+            overflow: auto;
+            min-height: 200px;
+        }
+        #graph svg { max-width: 100%; height: auto; }
+        .status { font-style: italic; color: #666; margin-left: 10px; }
+        label { font-weight: bold; display: block; margin-bottom: 5px; }
+        details { margin-top: 8px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Tree Decomposition in your browser</h1>
+    <div>
+        Paste a DIMACS CNF below and click <em>Run</em>. The primal graph is
+        built, FlowCutter produces a tree decomposition, and the resulting
+        decomposition is rendered below as an interactive graph.
+    </div>
+
+    <div>
+        Built on top of the original FlowCutter library by
+        <strong>Ben Strasser</strong>, with graph libraries by
+        <strong>Tuukka Korhonen</strong> and <strong>Matti Jarvisalo</strong>,
+        and additional graph code by <strong>Kenji Hashimoto</strong>.
+        Packaged as a library and browser UI by <strong>Mate Soos</strong>.
+        All bugs belong to Mate Soos (<a href="mailto:soos.mate@gmail.com">soos.mate@gmail.com</a>).
+    </div>
+
+    <div>
+        <label for="input-content">CNF:</label>
+        <textarea id="input-content">p cnf 7 8
+1 2 3 0
+2 3 4 0
+3 4 5 0
+-4 5 6 0
+5 6 7 0
+-1 3 5 0
+2 4 6 0
+-5 -6 7 0
+</textarea>
+    </div>
+
+    <div>
+        <button id="run-button" disabled>Run treedecomp</button>
+        <span id="status" class="status">Loading WebAssembly module...</span>
+    </div>
+
+    <div>
+        <label>Tree decomposition:</label>
+        <div id="graph"><em>(no graph yet)</em></div>
+    </div>
+
+    <div>
+        <label for="output">Console output:</label>
+        <div id="output">Ready - enter your input and click "Run treedecomp"</div>
+    </div>
+
+    <details>
+        <summary>DOT source</summary>
+        <div id="dot-src"></div>
+    </details>
+
+    <div style="margin-top: 20px; text-align: center; color: #666; font-size: 0.9em;">
+        Source code: <a href="https://github.com/meelgroup/treedecomp">github.com/meelgroup/treedecomp</a>
+    </div>
+</div>
+
+<script type="module">
+    import { instance } from "https://cdn.jsdelivr.net/npm/@viz-js/viz@3.7.0/+esm";
+    const vizPromise = instance();
+
+    const outputDiv = document.getElementById('output');
+    const graphDiv = document.getElementById('graph');
+    const dotDiv = document.getElementById('dot-src');
+    const statusEl = document.getElementById('status');
+    const runBtn = document.getElementById('run-button');
+
+    function createWorker() {
+        const workerCode = `
+            var Module = {
+                noInitialRun: true,
+                stdin: function() { return null; },
+                print: function(text) { postMessage({type:'output', content:text}); },
+                printErr: function(text) { postMessage({type:'output', content:text}); },
+                onRuntimeInitialized: function() { postMessage({type:'ready'}); },
+                locateFile: function(path) {
+                    if (path.endsWith('.wasm'))
+                        return self.workerOptions.wasmPath || 'treedecomp.wasm';
+                    return path;
+                }
+            };
+            onmessage = function(e) {
+                if (e.data.type === 'init') {
+                    self.workerOptions = e.data.options;
+                    importScripts(e.data.options.jsPath);
+                } else if (e.data.type === 'run') {
+                    try {
+                        try { Module.FS.unlink('/out.dot'); } catch(_) {}
+                        Module.FS.writeFile('/input.cnf', e.data.input);
+                        Module.callMain(['--tdvis', '/out.dot', '/input.cnf']);
+                        let dot = '';
+                        try { dot = Module.FS.readFile('/out.dot', {encoding:'utf8'}); }
+                        catch(_) { dot = ''; }
+                        postMessage({type:'done', dot: dot});
+                    } catch (err) {
+                        postMessage({type:'error', content: err.toString()});
+                    }
+                }
+            };
+        `;
+        const blob = new Blob([workerCode], {type: 'application/javascript'});
+        return URL.createObjectURL(blob);
+    }
+
+    async function renderDot(dot) {
+        if (!dot) {
+            graphDiv.innerHTML = '<em>(no DOT file produced — perhaps the graph was skipped)</em>';
+            dotDiv.textContent = '';
+            return;
+        }
+        dotDiv.textContent = dot;
+        try {
+            const viz = await vizPromise;
+            const svg = viz.renderSVGElement(dot);
+            graphDiv.innerHTML = '';
+            graphDiv.appendChild(svg);
+        } catch (e) {
+            graphDiv.innerHTML = '<em>Failed to render DOT: ' + e + '</em>';
+        }
+    }
+
+    // Preload the main-thread module just to know when wasm is available.
+    // We actually run via worker, so we just mark ready immediately.
+    statusEl.textContent = 'Ready';
+    runBtn.disabled = false;
+
+    runBtn.addEventListener('click', () => {
+        const input = document.getElementById('input-content').value;
+        if (!input.trim()) {
+            outputDiv.textContent = 'Error: enter a CNF.';
+            return;
+        }
+        outputDiv.textContent = '';
+        graphDiv.innerHTML = '<em>Running...</em>';
+        dotDiv.textContent = '';
+        runBtn.disabled = true;
+        statusEl.textContent = 'Running...';
+
+        const wasmPath = new URL('treedecomp.wasm', window.location.href).href;
+        const jsPath = new URL('treedecomp.js', window.location.href).href;
+        const workerUrl = createWorker();
+        const worker = new Worker(workerUrl);
+
+        worker.onmessage = (e) => {
+            switch (e.data.type) {
+                case 'output':
+                    outputDiv.textContent += e.data.content + '\n';
+                    outputDiv.scrollTop = outputDiv.scrollHeight;
+                    break;
+                case 'ready':
+                    worker.postMessage({type:'run', input: input});
+                    break;
+                case 'done':
+                    statusEl.textContent = 'Completed';
+                    runBtn.disabled = false;
+                    renderDot(e.data.dot);
+                    worker.terminate();
+                    URL.revokeObjectURL(workerUrl);
+                    break;
+                case 'error':
+                    outputDiv.textContent += '\nError: ' + e.data.content;
+                    statusEl.textContent = 'Failed';
+                    runBtn.disabled = false;
+                    graphDiv.innerHTML = '<em>(error)</em>';
+                    worker.terminate();
+                    URL.revokeObjectURL(workerUrl);
+                    break;
+            }
+        };
+
+        worker.postMessage({
+            type: 'init',
+            options: { jsPath: jsPath, wasmPath: wasmPath }
+        });
+    });
+</script>
+</body>
+</html>

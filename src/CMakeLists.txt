@@ -93,6 +93,15 @@ target_include_directories(treedecomp-bin PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(treedecomp-bin PRIVATE treedecomp)
 
+if (EMSCRIPTEN)
+    target_link_options(treedecomp-bin PRIVATE
+        "SHELL:-s EXPORTED_RUNTIME_METHODS=['FS','callMain']"
+        "SHELL:-s EXPORTED_FUNCTIONS=['_main']"
+        "SHELL:-s INVOKE_RUN=0"
+        "SHELL:-s ALLOW_MEMORY_GROWTH=1"
+        "SHELL:-s MODULARIZE=0")
+endif()
+
 install(TARGETS treedecomp-bin RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 
 # Install flow-cutter headers
