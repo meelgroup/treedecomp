@@ -85,6 +85,16 @@ install(TARGETS treedecomp
     PUBLIC_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/treedecomp"
 )
 
+add_executable(treedecomp-bin main.cpp)
+set_target_properties(treedecomp-bin PROPERTIES
+    OUTPUT_NAME treedecomp
+    RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR})
+target_include_directories(treedecomp-bin PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(treedecomp-bin PRIVATE treedecomp)
+
+install(TARGETS treedecomp-bin RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+
 # Install flow-cutter headers
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/flow-cutter-pace17/src/
     DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/treedecomp/flow-cutter-pace17/src"
