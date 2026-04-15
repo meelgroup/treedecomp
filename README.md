@@ -30,15 +30,18 @@ p cnf <nvars> <nclauses>
 
 ### Output
 
-Comment lines prefixed with `c` (parse stats, TD width, the diagnostic
-`td_weight`), followed by one line per variable on stdout:
+Comment lines prefixed with `c` (parse stats and the TD width), followed by
+one line per variable on stdout in the form:
 
 ```
 <var> <tdscore>
 ```
 
-`tdscore` is in `[0, 100]` — higher means closer to the TD centroid (this is
-the `compute_td_score_using_raw` path from ganak's `counter.cpp`).
+The **first column is the variable** (1-indexed, matching the CNF numbering).
+The **second column is its tree-decomposition score, in the range `0..100`** —
+higher means the variable is closer to the centroid of the tree
+decomposition (this is the `compute_td_score_using_raw` path from ganak's
+`counter.cpp`).
 
 ### Example
 
@@ -55,8 +58,7 @@ p cnf 5 4
 $ ./build/treedecomp example.cnf
 c parsed nvars=5 clauses=4
 c primal nodes=5 edges=4 density=0.16 edge/var=0.8
-c TD width: 2
-c td_weight: 60
+c TD width: 1
 1 0
 2 50
 3 100
@@ -64,8 +66,10 @@ c td_weight: 60
 5 50
 ```
 
-Variable 3/4 are at the centroid of the decomposition (score 100); the
-leaves 1 and 5 are farthest (score 0 and 50 respectively).
+Each output line is `<variable> <score>`: column 1 is the CNF variable id,
+column 2 is its TD score in `0..100`. Here variables 3 and 4 sit at the
+centroid of the decomposition (score 100); the leaves 1 and 5 are farthest
+(score 0 and 50).
 
 ### Usage
 
@@ -88,9 +92,7 @@ up with what ganak computes on the same instance:
 | `--tdmaxdensity F`   | skip TD if primal density > F |
 | `--tdmaxedgeratio N` | skip TD if edge/var ratio > N |
 | `--tdvarlim N`       | skip TD if #vars > N |
-| `--tdlimit N`        | if TD width > N, clamp reported `td_weight` |
 | `--tdcontract 0/1`   | contract high-numbered vars before running TD |
-| `--tdmaxw F`, `--tdminw F`, `--tddiv F`, `--tdexpmult F` | td_weight formula params |
 | `-v N`               | verbosity |
 
 The binary links against the `treedecomp` library and uses `argparse.hpp` for

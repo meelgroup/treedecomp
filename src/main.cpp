@@ -121,12 +121,7 @@ int main(int argc, char** argv) {
   add_dbl("--tdmaxdensity", conf.td_max_density, "Skip TD if primal density exceeds this");
   add_int("--tdmaxedgeratio", conf.td_max_edge_var_ratio, "Skip TD if edge/var ratio exceeds this");
   add_int("--tdvarlim", conf.td_varlim, "Skip TD if nvars exceeds this");
-  add_int("--tdlimit", conf.td_limit, "If TD width is above this, report low weight");
   add_int("--tdcontract", conf.do_td_contract, "Contract high-numbered vars before running TD");
-  add_dbl("--tdmaxw", conf.td_maxweight, "TD max weight");
-  add_dbl("--tdminw", conf.td_minweight, "TD min weight");
-  add_dbl("--tddiv", conf.td_divider,    "TD divider");
-  add_dbl("--tdexpmult", conf.td_exp_mult, "TD exponent multiplier");
   add_int("-v", conf.verb, "Verbosity");
   program.add_argument("input")
       .action([&](const auto& a){ conf.input = a; })
@@ -180,18 +175,6 @@ int main(int argc, char** argv) {
   auto td = fc.constructTD(conf.td_steps, conf.td_iters);
   const int tw = td.width();
   if (conf.verb >= 1) cout << "c TD width: " << tw << endl;
-
-  // td weight (diagnostic; same formula as counter.cpp)
-  double td_weight = conf.td_maxweight;
-  if (tw > 0) {
-    double rt = (double)nvars / (double)tw;
-    if (rt * conf.td_exp_mult > 20) td_weight = conf.td_maxweight;
-    else td_weight = std::exp(rt * conf.td_exp_mult) / conf.td_divider;
-  }
-  td_weight = std::min(td_weight, conf.td_maxweight);
-  td_weight = std::max(td_weight, conf.td_minweight);
-  if (tw > conf.td_limit) td_weight = 0.1;
-  if (conf.verb >= 1) cout << "c td_weight: " << td_weight << endl;
 
   // per-variable score via centroid-distance (compute_td_score_using_raw path)
   td.centroid(conf.verb);
