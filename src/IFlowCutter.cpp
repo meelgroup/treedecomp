@@ -45,7 +45,6 @@
 #include "time_mem.hpp"
 
 #include <queue>
-#include <sys/time.h>
 
 #include <iostream>
 using namespace std;

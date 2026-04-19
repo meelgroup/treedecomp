@@ -13,6 +13,10 @@ set(SOURCES
 
 add_library(treedecomp ${SOURCES})
 
+if(NOT BUILD_SHARED_LIBS)
+    target_compile_definitions(treedecomp PUBLIC TREEDECOMP_STATIC_DEFINE)
+endif()
+
 target_include_directories(treedecomp
   PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}

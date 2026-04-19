@@ -23,7 +23,9 @@ THE SOFTWARE.
 #pragma once
 
 // Visibility export macros for proper symbol visibility with -fvisibility=hidden
-#if defined(_WIN32) || defined(__CYGWIN__)
+#ifdef TREEDECOMP_STATIC_DEFINE
+  #define TREEDECOMP_PUBLIC
+#elif defined(_WIN32) || defined(__CYGWIN__)
   #ifdef treedecomp_EXPORTS
     #define TREEDECOMP_PUBLIC __declspec(dllexport)
   #else
