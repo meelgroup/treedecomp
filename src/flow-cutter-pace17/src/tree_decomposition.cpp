@@ -4,6 +4,8 @@
 #include <vector>
 #include <algorithm>
 #include <cassert>
+#include <iterator>
+#include <utility>
 #include "heap.hpp"
 #include "tiny_id_func.hpp"
 #include "contraction_graph.hpp"

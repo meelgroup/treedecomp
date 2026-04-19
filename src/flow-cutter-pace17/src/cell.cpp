@@ -1,5 +1,7 @@
 #include "cell.hpp"
 
+#include <vector>
+
 int get_treewidth_of_multilevel_partition(const std::vector<Cell>&p){
 	int tw = 0;
 	for(auto&x:p)

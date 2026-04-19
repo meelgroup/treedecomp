@@ -44,6 +44,8 @@
 #include "TreeDecomposition.hpp"
 #include "time_mem.hpp"
 
+#include <algorithm>
+#include <iterator>
 #include <queue>
 
 #include <iostream>

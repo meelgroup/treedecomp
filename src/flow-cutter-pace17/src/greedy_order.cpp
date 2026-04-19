@@ -3,6 +3,9 @@
 #include "tiny_id_func.hpp"
 #include "permutation.hpp"
 #include "heap.hpp"
+#include <algorithm>
+#include <iterator>
+#include <utility>
 #include <vector>
 
 ArrayIDFunc<std::vector<int>> build_dyn_array(const ArrayIDIDFunc&tail, const ArrayIDIDFunc&head){
