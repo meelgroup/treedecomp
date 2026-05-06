@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -34,10 +35,18 @@ struct Config {
   int td_max_edge_var_ratio = 30;
   int td_varlim = 150000;
   int do_td_contract = 1;
+  int do_td_use_opt_indep = 1;
 
   int verb = 1;
   string input;
   string dot_file;
+};
+
+struct ParsedCnf {
+  int nvars = 0;
+  vector<vector<int>> cls;
+  vector<int> indep;     // c p show 1 2 ... 0
+  vector<int> optindep;  // c p optshow 1 2 ... 0
 };
 
 static void write_dot(const string& fname, TWD::TreeDecomposition& td, int centroid) {
@@ -65,7 +74,20 @@ static void write_dot(const string& fname, TWD::TreeDecomposition& td, int centr
   out << "}\n";
 }
 
-static vector<vector<int>> read_cnf(const string& fname, int& nvars) {
+static bool parse_lit_list_after(const string& line, const string& prefix,
+                                 vector<int>& out) {
+  if (line.size() < prefix.size()) return false;
+  if (line.compare(0, prefix.size(), prefix) != 0) return false;
+  std::istringstream iss(line.substr(prefix.size()));
+  int v;
+  while (iss >> v) {
+    if (v == 0) break;
+    out.push_back(v);
+  }
+  return true;
+}
+
+static ParsedCnf read_cnf(const string& fname) {
   std::istream* in = nullptr;
   std::ifstream fin;
   if (fname == "-" || fname.empty()) {
@@ -76,17 +98,24 @@ static vector<vector<int>> read_cnf(const string& fname, int& nvars) {
     in = &fin;
   }
 
-  nvars = 0;
+  ParsedCnf out;
   int ncls = 0;
-  vector<vector<int>> cls;
   string line;
   bool got_header = false;
   while (std::getline(*in, line)) {
-    if (line.empty() || line[0] == 'c') continue;
+    if (line.empty()) continue;
+    if (line[0] == 'c') {
+      // Headers from ganak's dump_td_cnf:
+      //   "c p optshow 1 2 ... 0"   (optional independent / projection set)
+      //   "c p show    1 2 ... 0"   (independent set)
+      if (parse_lit_list_after(line, "c p optshow ", out.optindep)) continue;
+      if (parse_lit_list_after(line, "c p show ", out.indep)) continue;
+      continue;
+    }
     if (line[0] == 'p') {
       std::istringstream iss(line);
       string p, cnf;
-      iss >> p >> cnf >> nvars >> ncls;
+      iss >> p >> cnf >> out.nvars >> ncls;
       got_header = true;
       continue;
     }
@@ -97,10 +126,10 @@ static vector<vector<int>> read_cnf(const string& fname, int& nvars) {
       if (lit == 0) break;
       c.push_back(lit);
     }
-    if (!c.empty()) cls.push_back(std::move(c));
+    if (!c.empty()) out.cls.push_back(std::move(c));
   }
   if (!got_header) { cerr << "ERROR: missing 'p cnf' header" << endl; exit(1); }
-  return cls;
+  return out;
 }
 
 static TWD::Graph build_primal(int nvars, const vector<vector<int>>& cls) {
@@ -147,7 +176,8 @@ int main(int argc, char** argv) {
   add_dbl("--tdmaxdensity", conf.td_max_density, "Skip TD if primal density exceeds this");
   add_int("--tdmaxedgeratio", conf.td_max_edge_var_ratio, "Skip TD if edge/var ratio exceeds this");
   add_int("--tdvarlim", conf.td_varlim, "Skip TD if nvars exceeds this");
-  add_int("--tdcontract", conf.do_td_contract, "Contract high-numbered vars before running TD");
+  add_int("--tdcontract", conf.do_td_contract, "Contract non-projection vars (clique-elim) before running TD");
+  add_int("--tdoptindep", conf.do_td_use_opt_indep, "Use 'c p optshow' (1) or 'c p show' (0) as projection set");
   add_int("-v", conf.verb, "Verbosity");
   program.add_argument("--tdvis")
       .action([&](const auto& a){ conf.dot_file = a; })
@@ -163,10 +193,12 @@ int main(int argc, char** argv) {
     cerr << e.what() << endl << program; return 1;
   }
 
-  int nvars = 0;
-  auto cls = read_cnf(conf.input, nvars);
+  auto parsed = read_cnf(conf.input);
+  const int nvars = parsed.nvars;
   if (conf.verb >= 1)
-    cout << "c parsed nvars=" << nvars << " clauses=" << cls.size() << endl;
+    cout << "c parsed nvars=" << nvars << " clauses=" << parsed.cls.size()
+         << " indep=" << parsed.indep.size()
+         << " optindep=" << parsed.optindep.size() << endl;
 
   if (nvars <= 0) { cerr << "ERROR: no variables" << endl; return 1; }
   if (nvars > conf.td_varlim) {
@@ -175,15 +207,69 @@ int main(int argc, char** argv) {
     return 0;
   }
 
-  auto primal = build_primal(nvars, cls);
+  // Pick the projection set (mirrors ganak's `do_td_use_opt_indep`).
+  // Ganak uses `nodes = opt_indep_support_end - 1` (i.e. the projection-set
+  // size) and assumes vars `[1..nodes]` are the projection vars (Arjun
+  // renumbers them to be first).
+  const vector<int>& proj =
+      (conf.do_td_use_opt_indep && !parsed.optindep.empty()) ? parsed.optindep
+    : (!parsed.indep.empty()) ? parsed.indep
+    : parsed.optindep; // empty -> nodes = nvars below
+  int nodes = nvars;
+  if (!proj.empty()) {
+    nodes = (int)proj.size();
+    // Verify proj is exactly {1, .., nodes}; otherwise contraction-by-index
+    // does NOT match ganak's behavior (ganak relies on Arjun renumbering).
+    vector<int> sorted_proj = proj;
+    std::sort(sorted_proj.begin(), sorted_proj.end());
+    bool consecutive = !sorted_proj.empty() && sorted_proj.front() == 1;
+    for (size_t i = 0; consecutive && i < sorted_proj.size(); i++)
+      if (sorted_proj[i] != (int)(i + 1)) consecutive = false;
+    if (!consecutive) {
+      cerr << "c WARNING: projection set is not {1.." << nodes
+           << "}; contraction-by-index will NOT match ganak's behavior" << endl;
+    }
+  }
+  if (conf.verb >= 1)
+    cout << "c projection nodes=" << nodes
+         << " (using " << (conf.do_td_use_opt_indep ? "optshow" : "show") << ")"
+         << endl;
+
+  auto primal = build_primal(nvars, parsed.cls);
+  if (conf.verb >= 1) {
+    cout << "c raw primal nodes=" << primal.numNodes()
+         << " edges=" << primal.numEdges() << endl;
+  }
+
+  // Mirror ganak's td_decompose contraction loop: contract every var index
+  // i in [nodes, nvars), bailing early if edge count blows past max_edges*100.
+  if (conf.do_td_contract && nodes < nvars) {
+    const int contract_cap = conf.td_max_edges * 100;
+    int contracted = 0;
+    for (int i = nodes; i < nvars; i++) {
+      primal.contract(i, contract_cap);
+      contracted++;
+      if (primal.numEdges() > contract_cap) {
+        if (conf.verb >= 1)
+          cerr << "c contraction blew edge budget after " << contracted
+               << " vars (edges=" << primal.numEdges()
+               << " > " << contract_cap << "), stopping early" << endl;
+        break;
+      }
+    }
+    if (conf.verb >= 1)
+      cout << "c after contraction: edges=" << primal.numEdges()
+           << " (contracted " << contracted << " vars)" << endl;
+  }
+
   const uint64_t n2 = (uint64_t)nvars * (uint64_t)nvars;
   const double density = n2 ? (double)primal.numEdges() / (double)n2 : 0.0;
   const double edge_var_ratio = nvars ? (double)primal.numEdges() / (double)nvars : 0.0;
   if (conf.verb >= 1) {
-    cout << "c primal nodes=" << primal.numNodes()
-         << " edges=" << primal.numEdges()
-         << " density=" << density
-         << " edge/var=" << edge_var_ratio << endl;
+    cout << "c primal (post-contract) edges=" << primal.numEdges()
+         << " density=" << std::fixed << std::setprecision(4) << density
+         << " edge/var=" << std::fixed << std::setprecision(3) << edge_var_ratio
+         << std::resetiosflags(std::ios::fixed) << endl;
   }
 
   if (primal.numEdges() > conf.td_max_edges) {
@@ -196,12 +282,30 @@ int main(int argc, char** argv) {
     cerr << "c edge/var ratio too high, skipping TD" << endl; return 0;
   }
 
-  if (!primal.isConnected()) {
+  // After contraction, contracted vars are isolated. Project to a graph of
+  // exactly `nodes` vertices to match ganak's `primal_alt`.
+  TWD::Graph primal_alt;
+  if (conf.do_td_contract && nodes < nvars) {
+    primal_alt = TWD::Graph(nodes);
+    const auto& adj = primal.get_adj_list();
+    for (int i = 0; i < nodes; i++) {
+      for (int nb : adj[i])
+        if (nb < nodes) primal_alt.addEdge(i, nb);
+    }
+  } else {
+    primal_alt = primal;
+  }
+  if (conf.verb >= 1) {
+    cout << "c primal_alt nodes=" << primal_alt.numNodes()
+         << " edges=" << primal_alt.numEdges() << endl;
+  }
+
+  if (!primal_alt.isConnected()) {
     cerr << "c WARNING: primal graph is not connected" << endl;
   }
 
-  TWD::IFlowCutter fc(primal.numNodes(), primal.numEdges(), conf.verb);
-  fc.importGraph(primal);
+  TWD::IFlowCutter fc(primal_alt.numNodes(), primal_alt.numEdges(), conf.verb);
+  fc.importGraph(primal_alt);
   auto td = fc.constructTD(conf.td_steps, conf.td_iters);
   const int tw = td.width();
   if (conf.verb >= 1) cout << "c TD width: " << tw << endl;
