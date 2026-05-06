@@ -49,29 +49,18 @@ struct ParsedCnf {
   vector<int> optindep;  // c p optshow 1 2 ... 0
 };
 
-static void write_dot(const string& fname, TWD::TreeDecomposition& td, int centroid) {
-  std::ofstream out(fname);
-  if (!out) { cerr << "ERROR: cannot write '" << fname << "'" << endl; exit(1); }
+// Mirror ganak's compute_td_score_using_adj DOT export: convert the
+// FlowCutter-built TWD::TreeDecomposition to an sspp::TreeDecomposition and
+// call its visualizeTree() so output matches `dec.visualizeTree(...)` in
+// ganak/src/counter.cpp byte-for-byte.
+static void write_dot(const string& fname, TWD::TreeDecomposition& td, int nodes) {
   const auto& bags = td.Bags();
   const auto& adj = td.get_adj_list();
-  out << "graph TD {\n";
-  out << "  node [shape=box, fontname=\"Courier\"];\n";
-  for (size_t i = 0; i < bags.size(); i++) {
-    out << "  b" << i << " [label=\"bag " << i
-        << ((int)i == centroid ? " (centroid)" : "")
-        << "\\nsize " << bags[i].size() << "\\n{";
-    for (size_t j = 0; j < bags[i].size(); j++) {
-      if (j) out << ", ";
-      out << (bags[i][j] + 1);
-    }
-    out << "}\"";
-    if ((int)i == centroid) out << ", style=filled, fillcolor=\"#ffd27a\"";
-    out << "];\n";
-  }
+  sspp::TreeDecomposition dec((int)bags.size(), nodes);
+  for (size_t i = 0; i < bags.size(); i++) dec.setBag((int)i, bags[i]);
   for (size_t i = 0; i < adj.size(); i++)
-    for (int nb : adj[i])
-      if ((int)i < nb) out << "  b" << i << " -- b" << nb << ";\n";
-  out << "}\n";
+    for (int nb : adj[i]) dec.addEdge((int)i, nb);
+  dec.visualizeTree(fname);
 }
 
 static bool parse_lit_list_after(const string& line, const string& prefix,
@@ -314,10 +303,10 @@ int main(int argc, char** argv) {
   if (conf.verb >= 1) cout << "c centroid bag: " << centroid << endl;
 
   if (!conf.dot_file.empty()) {
-    write_dot(conf.dot_file, td, centroid);
-    if (conf.verb >= 1)
-      cout << "c wrote DOT file: " << conf.dot_file
-           << " (render: dot -Tpdf " << conf.dot_file << " -o td.pdf)" << endl;
+    write_dot(conf.dot_file, td, nodes);
+    cout << "c o [td] Wrote tree decomposition to file: " << conf.dot_file << endl;
+    cout << "c o [td] You can convert it to pdf using the command: dot -Tpdf "
+         << conf.dot_file << " -o td_tree.pdf" << endl;
   }
 
   // per-variable score via centroid-distance (compute_td_score_using_raw path)
