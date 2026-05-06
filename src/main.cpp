@@ -320,7 +320,7 @@ int main(int argc, char** argv) {
     }
   }
 
-  for (int i = 0; i < nvars; i++)
+  for (int i = 0; i < nodes; i++)
     cout << (i + 1) << " " << tdscore[i] << "\n";
 
   return 0;
