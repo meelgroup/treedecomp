@@ -1,3 +1,5 @@
 .cache
 build/
 .claude
+/html/treedecomp.js
+/html/treedecomp.wasm
