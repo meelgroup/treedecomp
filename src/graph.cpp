@@ -22,13 +22,10 @@ THE SOFTWARE.
 
 #include <cassert>
 #include <iostream>
-#include <functional>
 #include <fstream>
-#include <set>
 #include "graph.hpp"
 #include "utils.hpp"
 #include "treedecomp_defs.hpp"
-using std::set;
 
 namespace sspp {
 
@@ -143,30 +140,27 @@ const vector<int>& TreeDecomposition::neighbor_bags(int b) const {
 }
 
 void TreeDecomposition::visualizeTree(const std::string& fname) const {
-    vector<int> subtreeVars(nBags, 0);
-
-    // First pass: compute subtree sizes
-    std::function<set<uint32_t>(int, int)> computeSizes = [&](int bag, int parent) -> set<uint32_t> {
-        std::set<uint32_t> visited;
-        for (int nb : neighbor_bags(bag)) {
-            if (nb != parent) {
-              auto ret = computeSizes(nb, bag);
-              for(const int v : ret) visited.insert(v);
-            }
-        }
-        for(int v : bags[bag]) visited.insert(v);
-        subtreeVars[bag] = visited.size();
-        return visited;
-    };
-    computeSizes(0, -1);
+    const int cen = nBags > 0 ? getCentroid() : -1;
 
     std::ofstream myfile;
-    myfile.open (fname);
-    myfile << "graph G {\n";
-    for(int i = 0; i < nBags; i++) {
-      myfile << "  " << i << " [label=\"" << i << " -- sz: " << bags[i].size() << " subtree sz:" << subtreeVars[i] << "\"];\n";
-      for(int nb : neighbor_bags(i)) {
-        if (nb > (int)i) myfile << "  " << i << " -- " << nb << ";\n";
+    myfile.open(fname);
+    myfile << "graph TD {\n";
+    myfile << "  node [shape=box, fontname=\"Courier\"];\n";
+    for (int i = 0; i < nBags; i++) {
+      myfile << "  b" << i << " [label=\"bag " << i;
+      if (i == cen) myfile << " (centroid)";
+      myfile << "\\nsize " << bags[i].size() << "\\n{";
+      for (size_t j = 0; j < bags[i].size(); j++) {
+        if (j) myfile << ", ";
+        myfile << (bags[i][j] + 1);
+      }
+      myfile << "}\"";
+      if (i == cen) myfile << ", style=filled, fillcolor=\"#ffd27a\"";
+      myfile << "];\n";
+    }
+    for (int i = 0; i < nBags; i++) {
+      for (int nb : neighbor_bags(i)) {
+        if (nb > i) myfile << "  b" << i << " -- b" << nb << ";\n";
       }
     }
     myfile << "}\n";
