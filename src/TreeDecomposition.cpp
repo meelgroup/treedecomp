@@ -26,12 +26,13 @@ THE SOFTWARE.
 #include <iostream>
 #include "treedecomp_defs.hpp"
 #include "time_mem.hpp"
+#include "centroid_imbalance.hpp"
 using namespace TWD;
 using std::cout;
 using std::endl;
 
 
-TreeDecomposition::TreeDecomposition() : tw(0), gnodes(0), cent(-1) {
+TreeDecomposition::TreeDecomposition() {
   start_time = cpu_time();
 }
 
@@ -99,34 +100,30 @@ const vector<vector<int>>& Graph::get_adj_list() const {
   return adj_list;
 }
 
-int TreeDecomposition::centroid(int verb) {
+int TreeDecomposition::centroid(int verb, bool use_new) {
   sortBags();
+  assert(!bags.empty());
 
-  cent = -1;
-  findCentroid(0, -1, cent);
+  // OLD (default): first bag whose subtree introduces >= gnodes/2 vertices.
+  // NEW: the most central bag, i.e. the one whose removal leaves the smallest
+  // largest-component ("imbalance"). Both live in centroid_imbalance.hpp.
+  auto neighbors = [&](int v) -> const vector<int>& { return Neighbors(v); };
+  vector<int> max_comp;
+  cent = twd_centroid::centroidBag(bags, neighbors, gnodes, use_new, &max_comp);
   assert(cent != -1);
-  if (verb >= 1) cout << "c o [td] centroid bag id: " << cent << " bag size: " << bags[cent].size() << endl;
+
+  if (verb >= 1) {
+    cout << "c o [td] centroid bag id: " << cent
+         << " bag size: " << bags[cent].size();
+    if (use_new) cout << " imbalance: " << max_comp[cent];
+    cout << endl;
+  }
   return cent;
 }
 
 bool TreeDecomposition::inBag(int v, int x) const {
   SLOW_DEBUG_DO(assert(std::is_sorted(bags[v].begin(), bags[v].end())));
   return std::binary_search(bags[v].begin(), bags[v].end(), x);
-}
-
-int TreeDecomposition::findCentroid(int v, int parent, int &centroid) const {
-  int intros = 0;
-  for (auto ch : Neighbors(v)) {
-    if (ch == parent) continue;
-    intros += findCentroid(ch, v, centroid);
-    if (centroid != -1) return intros;
-  }
-
-  for (auto x : bags[v])
-    if (parent == -1 || !inBag(parent, x)) intros++;
-
-  if (intros >= gnodes / 2) centroid = v;
-  return intros;
 }
 
 vector<int> TreeDecomposition::distanceFromCentroid() {

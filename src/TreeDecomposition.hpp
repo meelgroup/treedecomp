@@ -78,7 +78,11 @@ public:
   void setWidth(int width) { tw = width; }
   int width() const { return tw; }
   void setNumGraphNodes(int n) { gnodes = n; }
-  int centroid(int verb = 0);
+  // use_new == false (default) keeps the original behaviour: the first bag
+  // (deepest in post-order) whose subtree introduces >= gnodes/2 vertices.
+  // use_new == true ranks bags by imbalance and picks the smallest bag among
+  // the most central candidates.
+  int centroid(int verb = 0, bool use_new = false);
   vector<int> distanceFromCentroid();
   double start_time;
 
@@ -86,12 +90,11 @@ private:
   void sortBags() {
     for (auto& bag: bags) std::sort(bag.begin(), bag.end());
   }
-  int findCentroid(int v, int parent, int& centroid) const;
   void computeDistance(int v, int parent, int depth, vector<int>& distance);
 
   vector<vector<int>> bags;
-  int tw;
-  int gnodes;
+  int tw = 0;
+  int gnodes = 0;
   int cent = -1;
 };
 }

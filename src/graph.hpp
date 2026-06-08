@@ -82,9 +82,16 @@ public:
   void setBag(int v, const vector<int>& bag);
   int Width() const;
   bool InBag(int b, int v) const;
-  int getCentroid() const;
-  void visualizeTree(const std::string& fname) const;
-  vector<int> getOrd(int& centroid) const;
+  // use_new == false (default) keeps the original "first found" centroid;
+  // use_new == true picks the most central bag (smallest imbalance). Shared
+  // with TWD::TreeDecomposition via centroid_imbalance.hpp.
+  int getCentroid(bool use_new = false) const;
+  // Renders the decomposition to a Graphviz DOT file, highlighting bag `cen`
+  // as the centroid (pass -1 to highlight nothing). The centroid is computed
+  // once by TWD::TreeDecomposition::centroid() and passed in, so the
+  // visualization always matches the centroid used by the rest of the pipeline.
+  void visualizeTree(const std::string& fname, int cen) const;
+  vector<int> getOrd(int& centroid, bool use_new = false) const;
 private:
   int nBags; // number of bags in the tree decomposition
   int nVars; // number of vertices in the original graph
@@ -92,7 +99,6 @@ private:
   Graph tree; // the tree of bags
   vector<vector<int>> bags;
   void OdDes(int b, int p, int d, vector<int>& ret, vector<int>& bagDepths) const;
-  int CenDfs(int x, int p, int& cen) const;
   bool bagsConnected(int start) const {
     if (nBags == 0) return true;
     vector<int> visited(nBags, 0);

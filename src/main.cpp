@@ -36,6 +36,7 @@ struct Config {
   int td_varlim = 150000;
   int do_td_contract = 1;
   int do_td_use_opt_indep = 1;
+  int do_td_new_centroid = 0;
 
   int verb = 1;
   string input;
@@ -52,15 +53,18 @@ struct ParsedCnf {
 // Mirror ganak's compute_td_score_using_adj DOT export: convert the
 // FlowCutter-built TWD::TreeDecomposition to an sspp::TreeDecomposition and
 // call its visualizeTree() so output matches `dec.visualizeTree(...)` in
-// ganak/src/counter.cpp byte-for-byte.
-static void write_dot(const string& fname, TWD::TreeDecomposition& td, int nodes) {
+// ganak/src/counter.cpp. The highlighted centroid is the one computed by
+// TWD::TreeDecomposition::centroid(), so the picture matches the rest of the
+// pipeline rather than recomputing it independently.
+static void write_dot(const string& fname, TWD::TreeDecomposition& td, int nodes,
+                      int centroid) {
   const auto& bags = td.Bags();
   const auto& adj = td.get_adj_list();
   sspp::TreeDecomposition dec((int)bags.size(), nodes);
   for (size_t i = 0; i < bags.size(); i++) dec.setBag((int)i, bags[i]);
   for (size_t i = 0; i < adj.size(); i++)
     for (int nb : adj[i]) dec.addEdge((int)i, nb);
-  dec.visualizeTree(fname);
+  dec.visualizeTree(fname, centroid);
 }
 
 static bool parse_lit_list_after(const string& line, const string& prefix,
@@ -167,6 +171,7 @@ int main(int argc, char** argv) {
   add_int("--tdvarlim", conf.td_varlim, "Skip TD if nvars exceeds this");
   add_int("--tdcontract", conf.do_td_contract, "Contract non-projection vars (clique-elim) before running TD");
   add_int("--tdoptindep", conf.do_td_use_opt_indep, "Use 'c p optshow' (1) or 'c p show' (0) as projection set");
+  add_int("--tdnewcentroid", conf.do_td_new_centroid, "Centroid: new most-central/smallest-imbalance (1) or old first-found (0, default)");
   add_int("-v", conf.verb, "Verbosity");
   program.add_argument("--tdvis")
       .action([&](const auto& a){ conf.dot_file = a; })
@@ -299,11 +304,11 @@ int main(int argc, char** argv) {
   const int tw = td.width();
   if (conf.verb >= 1) cout << "c TD width: " << tw << endl;
 
-  const int centroid = td.centroid(conf.verb);
+  const int centroid = td.centroid(conf.verb, conf.do_td_new_centroid);
   if (conf.verb >= 1) cout << "c centroid bag: " << centroid << endl;
 
   if (!conf.dot_file.empty()) {
-    write_dot(conf.dot_file, td, nodes);
+    write_dot(conf.dot_file, td, nodes, centroid);
     cout << "c o [td] Wrote tree decomposition to file: " << conf.dot_file << endl;
     cout << "c o [td] You can convert it to pdf using the command: dot -Tpdf "
          << conf.dot_file << " -o td_tree.pdf" << endl;

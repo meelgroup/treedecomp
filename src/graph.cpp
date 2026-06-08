@@ -26,6 +26,7 @@ THE SOFTWARE.
 #include "graph.hpp"
 #include "utils.hpp"
 #include "treedecomp_defs.hpp"
+#include "centroid_imbalance.hpp"
 
 namespace sspp {
 
@@ -139,9 +140,7 @@ const vector<int>& TreeDecomposition::neighbor_bags(int b) const {
   return tree.Neighbors(b);
 }
 
-void TreeDecomposition::visualizeTree(const std::string& fname) const {
-    const int cen = nBags > 0 ? getCentroid() : -1;
-
+void TreeDecomposition::visualizeTree(const std::string& fname, int cen) const {
     std::ofstream myfile;
     myfile.open(fname);
     myfile << "graph TD {\n";
@@ -167,29 +166,13 @@ void TreeDecomposition::visualizeTree(const std::string& fname) const {
     myfile.close();
 }
 
-int TreeDecomposition::CenDfs(int bag, int parent, int& cen) const {
-  assert(bag >= 0 && bag < nBags);
-  assert(cen == -1);
-  int intro = 0;
-  for (int nb : neighbor_bags(bag)) {
-    if (nb == parent) continue;
-    int cintro = CenDfs(nb, bag, cen);
-    intro += cintro;
-    if (cintro >= nVars/2) {
-      assert(cen >= 0);
-      return intro;
-    }
-  }
-  for (int v : bags[bag]) {
-    if (parent == -1 || !InBag(parent, v)) intro++;
-  }
-  if (intro >= nVars/2) cen = bag;
-  return intro;
-}
-
-int TreeDecomposition::getCentroid() const {
-  int cen = -1;
-  CenDfs(0, -1, cen);
+int TreeDecomposition::getCentroid(bool use_new) const {
+  // Shared with TWD::TreeDecomposition via centroid_imbalance.hpp so both agree
+  // on what "the centroid" is. use_new picks the most central bag (smallest
+  // imbalance); otherwise the original "first found" bag.
+  const int cen = twd_centroid::centroidBag(
+      bags, [&](int b) -> const vector<int>& { return neighbor_bags(b); },
+      nVars, use_new);
   assert(cen >= 0 && cen < nBags);
   return cen;
 }
@@ -221,8 +204,8 @@ void TreeDecomposition::OdDes(int bag, int parent, int depth, vector<int>& ret, 
 //    and propagates outward, ensuring: Vertices in parent bags are processed
 //    before their children. Newly discovered vertices get a higher (later)
 //    order.
-vector<int> TreeDecomposition::getOrd(int& centroid) const {
-  centroid = getCentroid();
+vector<int> TreeDecomposition::getOrd(int& centroid, bool use_new) const {
+  centroid = getCentroid(use_new);
   SLOW_DEBUG_DO(assert(bagsConnected(centroid)));
   assert(centroid >= 0 && centroid < nBags);
   vector<int> ret(nVars, -1);
