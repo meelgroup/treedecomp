@@ -46,7 +46,10 @@
 
 #include <algorithm>
 #include <iterator>
+#include <numeric>
 #include <queue>
+#include <random>
+#include <vector>
 
 #include <iostream>
 using namespace std;
@@ -643,9 +646,52 @@ TreeDecomposition IFlowCutter::constructTD(const int64_t conf_steps, int conf_it
 
         int64_t steps = conf_steps;
         int64_t next_step_print = steps-1e4;
+
         if(node_count < 50000){
           print_comment("min degree heuristic");
-          test_new_order(chain(compute_greedy_min_degree_order(tail, head), inv_preorder), td);
+          const auto first_order = chain(compute_greedy_min_degree_order(tail, head), inv_preorder);
+          test_new_order(first_order, td);
+
+          // Min degree breaks ties by node id, so a mere renumbering of the
+          // same graph can change the width by 20%. Retry on random
+          // relabelings, with its own RNG so FlowCutter's seeds are unchanged.
+          // The number of runs must not depend on time, so it is bounded by the
+          // elimination work of the first order: sum of up-degree^2, which is
+          // what merging the neighbour lists costs
+          int64_t work = 0;
+          {
+            auto inv_order = inverse_permutation(first_order);
+            int current = -1;
+            int64_t up_deg = 0;
+            compute_chordal_supergraph(chain(tail, inv_order), chain(head, inv_order), [&](int x, int /*y*/){
+              if(x != current){
+                work += up_deg*up_deg;
+                current = x;
+                up_deg = 0;
+              }
+              ++up_deg;
+            });
+            work += up_deg*up_deg;
+          }
+          const int runs = (int)std::min<int64_t>(32, 1000LL*1000LL*1000LL / std::max<int64_t>(1, work));
+
+          const int start_bag_size = best_bag_size;
+          const double start = cpu_time();
+          std::minstd_rand md_rand(1);
+          std::vector<int> shuffled(node_count);
+          for(int r = 0; r < runs; ++r){
+            std::iota(shuffled.begin(), shuffled.end(), 0);
+            std::shuffle(shuffled.begin(), shuffled.end(), md_rand);
+            ArrayIDIDFunc perm(node_count, node_count);
+            for(int x=0; x<node_count; ++x) perm[x] = shuffled[x];
+            const auto inv_perm = inverse_permutation(perm);
+            auto order = compute_greedy_min_degree_order(chain(tail, perm), chain(head, perm));
+            test_new_order(chain(chain(std::move(order), inv_perm), inv_preorder), td);
+          }
+          if (verb > 0) {
+            cout << "c o [td] random min degree runs: " << runs << " work: " << work
+              << " tw " << start_bag_size << " -> " << best_bag_size << " T: " << (cpu_time() - start) << endl;
+          }
         }
 
         if(node_count < 1000){
