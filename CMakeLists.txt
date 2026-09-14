@@ -167,6 +167,10 @@ list(GET TREEDECOMP_FULL_VERSION_LIST 2 PROJECT_VERSION_PATCH)
 set(PROJECT_VERSION "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}")
 message(STATUS "PROJECT_VERSION: ${PROJECT_VERSION}")
 
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/GetGitSHA1.cmake")
+get_git_sha1(GIT_SHA1)
+message(STATUS "GIT hash found: ${GIT_SHA1}")
+
 # -----------------------------------------------------------------------------
 # Provide an export name to be used by targets that wish to export themselves.
 # -----------------------------------------------------------------------------

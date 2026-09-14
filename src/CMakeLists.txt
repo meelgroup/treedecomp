@@ -2,7 +2,10 @@ if(NOT WIN32)
     add_cxx_flag_if_supported("-Wno-class-memaccess")
 endif()
 
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/GitSHA1.cpp.in" "${CMAKE_CURRENT_BINARY_DIR}/GitSHA1.cpp" @ONLY)
+
 set(SOURCES
+    ${CMAKE_CURRENT_BINARY_DIR}/GitSHA1.cpp
     TreeDecomposition.cpp
     IFlowCutter.cpp
     graph.cpp
@@ -41,6 +44,7 @@ treedecomp_add_public_header(treedecomp ${CMAKE_CURRENT_SOURCE_DIR}/bitset.hpp)
 treedecomp_add_public_header(treedecomp ${CMAKE_CURRENT_SOURCE_DIR}/treedecomp_defs.hpp)
 treedecomp_add_public_header(treedecomp ${CMAKE_CURRENT_SOURCE_DIR}/treedecomp_export.hpp)
 treedecomp_add_public_header(treedecomp ${CMAKE_CURRENT_SOURCE_DIR}/graph.hpp)
+treedecomp_add_public_header(treedecomp ${CMAKE_CURRENT_SOURCE_DIR}/treedecomp_version.hpp)
 
 # Public headers are fully known now; the CopyPublicHeaders target below reads
 # this property, so it must be set before that target is created.

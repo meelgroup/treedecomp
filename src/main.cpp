@@ -15,6 +15,7 @@
 
 #include "argparse.hpp"
 #include "graph.hpp"
+#include "treedecomp_version.hpp"
 #include "IFlowCutter.hpp"
 #include "TreeDecomposition.hpp"
 
@@ -137,7 +138,7 @@ static TWD::Graph build_primal(int nvars, const vector<vector<int>>& cls) {
 
 int main(int argc, char** argv) {
   Config conf;
-  argparse::ArgumentParser program("treedecomp", "1.0.0",
+  argparse::ArgumentParser program("treedecomp", TWD::get_version_sha1(),
       argparse::default_arguments::help);
 
   auto fc_int    = [](const string& s) { return std::stoi(s); };
@@ -182,6 +183,7 @@ int main(int argc, char** argv) {
     cerr << e.what() << endl << program; return 1;
   }
 
+  if (conf.verb >= 1) cout << "c TreeDecomp SHA1: " << TWD::get_version_sha1() << endl;
   auto parsed = read_cnf(conf.input);
   const int nvars = parsed.nvars;
   if (conf.verb >= 1)
