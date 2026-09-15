@@ -50,7 +50,6 @@ public:
 private:
   void print_comment(std::string msg);
   int compute_max_bag_size_of_order(const ArrayIDIDFunc&order);
-  void test_new_order(const ArrayIDIDFunc&order, TreeDecomposition&td);
 
   TreeDecomposition output_tree_decompostion_of_order(ArrayIDIDFunc tail, ArrayIDIDFunc head, const ArrayIDIDFunc&order);
   TreeDecomposition output_tree_decompostion_of_multilevel_partition(const ArrayIDIDFunc&tail, const ArrayIDIDFunc&head, const ArrayIDIDFunc&to_input_node_id, const std::vector<Cell>&cell_list);

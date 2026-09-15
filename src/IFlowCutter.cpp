@@ -378,15 +378,6 @@ int IFlowCutter::compute_max_bag_size_of_order(const ArrayIDIDFunc&order){
   return max_up_deg+1;
 }
 
-void IFlowCutter::test_new_order(const ArrayIDIDFunc&order, TreeDecomposition& td){
-  int x = compute_max_bag_size_of_order(order);
-  {
-    if(x < best_bag_size){
-      best_bag_size = x;
-      td = output_tree_decompostion_of_order(tail, head, order);
-    }
-  }
-}
 
 TreeDecomposition IFlowCutter::output_tree_decompostion_of_order(
     ArrayIDIDFunc tail_loc, ArrayIDIDFunc head_loc, const ArrayIDIDFunc&order){
@@ -487,10 +478,6 @@ TreeDecomposition IFlowCutter::output_tree_decompostion_of_order(
   better_td.init(bag_count);
   better_td.setWidth(maximum_bag_size-1);
   better_td.setNumGraphNodes(node_count);
-  if (verb > 0) {
-    cout << "c o [td] #bags " << bag_count << ", tw " << maximum_bag_size
-        << ", elapsed " << (cpu_time()-start_time) << " s" << endl;
-  }
   better_td.initBags();
 
   for(int i=0; i<bag_count; ++i) {
@@ -575,10 +562,6 @@ TreeDecomposition IFlowCutter::output_tree_decompostion_of_multilevel_partition(
   better_td.init(bag_count);
   better_td.setWidth(get_treewidth_of_multilevel_partition(cell_list)-1);
   better_td.setNumGraphNodes(get_node_count_of_multilevel_partition(cell_list));
-  if (verb > 0)
-    cout << "c o [td] #bags " << bag_count
-        << " tw " << get_treewidth_of_multilevel_partition(cell_list)-1
-        << " elapsed " << cpu_time()-start_time << " s" << endl;
   better_td.initBags();
 
   for(int i=0; i<bag_count; ++i) {
@@ -621,10 +604,86 @@ TreeDecomposition IFlowCutter::constructTD(const int64_t conf_steps, int conf_it
 
     const int node_count = tail.image_count();
 
+    // Ganak branches on the centroid bag's vars first, so on graphs where the
+    // width is over 30% of the nodes, a TD whose centroid bag leaves only
+    // small components beats a narrower one that barely splits: if the widths
+    // are within 10%, the smaller largest component after removing the
+    // centroid bag wins. On sparser graphs the width decides alone, there a
+    // smaller width was what made counting faster
+    const auto out_arcs = invert_sorted_id_id_func(tail);
+    std::vector<int> comp_stack;
+    std::vector<char> comp_state(node_count);
+    auto largest_split_comp = [&](TreeDecomposition& cand) -> int {
+      const auto& centroid_bag = cand.Bags()[cand.centroid(0)];
+      std::fill(comp_state.begin(), comp_state.end(), 0);
+      for(int v : centroid_bag) comp_state[inv_preorder(v)] = 1;
+      int largest = 0;
+      for(int s=0; s<node_count; ++s){
+        if(comp_state[s]) continue;
+        comp_state[s] = 1;
+        comp_stack.assign(1, s);
+        int size = 0;
+        while(!comp_stack.empty()){
+          int x = comp_stack.back();
+          comp_stack.pop_back();
+          ++size;
+          for(int xy : out_arcs(x)){
+            int y = head(xy);
+            if(!comp_state[y]){
+              comp_state[y] = 1;
+              comp_stack.push_back(y);
+            }
+          }
+        }
+        largest = std::max(largest, size);
+      }
+      return largest;
+    };
+    // The 10% is measured from the narrowest width seen so far, kept or not,
+    // otherwise accepting slightly wider TDs one after another would drift
+    // Once off, the band stays off: min_width only decreases, and the TD that
+    // turns it off is the narrowest seen, so it becomes the best
+    auto band_on = [&](int narrowest){ return narrowest > 0.3*node_count; };
+    auto within_band = [](int width, int min_width){ return width - min_width <= 0.1*width; };
+    int min_width = -1;
+    int best_width = -1;
+    int best_split = 0;
+    // Bag size bound for the next candidate: anything wider can not win
+    auto bag_bound = [&]{
+      if(min_width < 0) return std::numeric_limits<int>::max();
+      if(!band_on(min_width)) return best_bag_size;
+      return (int)(min_width/0.9) + 2;
+    };
+    auto consider = [&](TreeDecomposition cand){
+      const int width = cand.width();
+      if(min_width >= 0){
+        if(band_on(min_width) ? !within_band(width, min_width) : width >= best_width) return false;
+      }
+      const int new_min = (min_width < 0) ? width : std::min(width, min_width);
+      const int split = largest_split_comp(cand);
+      min_width = new_min;
+      bool better;
+      if(best_width < 0 || !band_on(min_width)) better = best_width < 0 || width < best_width;
+      else better = !within_band(best_width, min_width)
+        || split < best_split || (split == best_split && width < best_width);
+      if(!better) return false;
+      if (verb > 0) {
+        cout << "c o [td] accepted TD, bags: " << cand.Bags().size() << " tw: " << width
+          << " largest comp after centroid bag: " << split << "/" << node_count
+          << " narrowest tw seen: " << min_width << " elapsed " << (cpu_time()-start_time) << " s" << endl;
+      }
+      td = std::move(cand);
+      best_width = width;
+      best_split = split;
+      best_bag_size = width+1;
+      return true;
+    };
+    auto test_new_order = [&](const ArrayIDIDFunc&order){
+      if(compute_max_bag_size_of_order(order) < bag_bound())
+        consider(output_tree_decompostion_of_order(tail, head, order));
+    };
     auto on_new_multilevel_partition = [&](const std::vector<Cell>&multilevel_partition, bool /*must_print*/){
-      int tw = get_treewidth_of_multilevel_partition(multilevel_partition);
-      td = output_tree_decompostion_of_multilevel_partition(tail, head, preorder, multilevel_partition);
-      best_bag_size = tw;
+      consider(output_tree_decompostion_of_multilevel_partition(tail, head, preorder, multilevel_partition));
     };
 
     {
@@ -641,7 +700,7 @@ TreeDecomposition IFlowCutter::constructTD(const int64_t conf_steps, int conf_it
           config.min_small_side_size = 0.1;
           config.max_cut_size = 500;
           config.separator_selection = flow_cutter::Config::SeparatorSelection::edge_first;
-          compute_multilevel_partition(tail, head, flow_cutter::ComputeSeparator(config), best_bag_size, on_new_multilevel_partition);
+          compute_multilevel_partition(tail, head, flow_cutter::ComputeSeparator(config), bag_bound(), on_new_multilevel_partition);
         }
 
         int64_t steps = conf_steps;
@@ -650,7 +709,7 @@ TreeDecomposition IFlowCutter::constructTD(const int64_t conf_steps, int conf_it
         if(node_count < 50000){
           print_comment("min degree heuristic");
           const auto first_order = chain(compute_greedy_min_degree_order(tail, head), inv_preorder);
-          test_new_order(first_order, td);
+          test_new_order(first_order);
 
           // Min degree breaks ties by node id, so a mere renumbering of the
           // same graph can change the width by 20%. Retry on random
@@ -675,7 +734,7 @@ TreeDecomposition IFlowCutter::constructTD(const int64_t conf_steps, int conf_it
           }
           const int runs = (int)std::min<int64_t>(32, 1000LL*1000LL*1000LL / std::max<int64_t>(1, work));
 
-          const int start_bag_size = best_bag_size;
+          const int start_width = best_width;
           const double start = cpu_time();
           std::minstd_rand md_rand(1);
           std::vector<int> shuffled(node_count);
@@ -686,17 +745,17 @@ TreeDecomposition IFlowCutter::constructTD(const int64_t conf_steps, int conf_it
             for(int x=0; x<node_count; ++x) perm[x] = shuffled[x];
             const auto inv_perm = inverse_permutation(perm);
             auto order = compute_greedy_min_degree_order(chain(tail, perm), chain(head, perm));
-            test_new_order(chain(chain(std::move(order), inv_perm), inv_preorder), td);
+            test_new_order(chain(chain(std::move(order), inv_perm), inv_preorder));
           }
           if (verb > 0) {
             cout << "c o [td] random min degree runs: " << runs << " work: " << work
-              << " tw " << start_bag_size << " -> " << best_bag_size << " T: " << (cpu_time() - start) << endl;
+              << " tw " << start_width << " -> " << best_width << " T: " << (cpu_time() - start) << endl;
           }
         }
 
         if(node_count < 1000){
           print_comment("min shortcut heuristic");
-          test_new_order(chain(compute_greedy_min_shortcut_order(tail, head), inv_preorder), td);
+          test_new_order(chain(compute_greedy_min_shortcut_order(tail, head), inv_preorder));
         }
 
         {
@@ -720,7 +779,7 @@ TreeDecomposition IFlowCutter::constructTD(const int64_t conf_steps, int conf_it
             case 0: config.min_small_side_size = 0.0; break;
             }
 
-            compute_multilevel_partition(tail, head, flow_cutter::ComputeSeparator(config), best_bag_size, on_new_multilevel_partition);
+            compute_multilevel_partition(tail, head, flow_cutter::ComputeSeparator(config), bag_bound(), on_new_multilevel_partition);
 
 
             if ((i % 100 == 0 && i > 0) || steps < next_step_print) {
