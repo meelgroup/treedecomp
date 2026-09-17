@@ -44,7 +44,10 @@ public:
   IFlowCutter(int n, int m, int verb = 0);
 
   void importGraph(const Graph& g);
-  TreeDecomposition constructTD(const int64_t steps = 1e5, const int iters = 900);
+  // band_pct: how much wider than the narrowest TD seen a better-splitting
+  // candidate may be. dense_pct: width/nodes above which the split decides
+  TreeDecomposition constructTD(const int64_t steps = 1e5, const int iters = 900,
+      int band_pct = 10, int dense_pct = 30);
   auto num_nodes() const { return nodes; }
 
 private:
@@ -55,7 +58,6 @@ private:
   TreeDecomposition output_tree_decompostion_of_multilevel_partition(const ArrayIDIDFunc&tail, const ArrayIDIDFunc&head, const ArrayIDIDFunc&to_input_node_id, const std::vector<Cell>&cell_list);
 
   int nodes;
-  int best_bag_size;
 
   ArrayIDIDFunc head, tail;
   int verb = 0;
