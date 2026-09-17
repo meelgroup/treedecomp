@@ -75,6 +75,11 @@ struct ConstIntIDFunc{
 		return value;
 	}
 
+	// Every arc has the same capacity, so the back arc's is the same too.
+	int back_capacity(int)const{
+		return value;
+	}
+
 	int preimage_count_;
 };
 

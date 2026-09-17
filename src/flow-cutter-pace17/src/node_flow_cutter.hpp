@@ -111,6 +111,14 @@ namespace flow_cutter{
 					return get_expanded_arc_tail_out_flag(a);
 				}
 			}
+
+			//! Capacity of back_arc(a), without computing back_arc(a).
+			//! back_arc keeps an arc intra/inter and flips its tail-out flag, and
+			//! both branches above read out as a 0/1 function of that flag, so
+			//! flipping it just complements the capacity.
+			int back_capacity(int a)const{
+				return 1 - (*this)(a);
+			}
 		};
 
 		inline Capacity capacity(int original_node_count, int original_arc_count){
@@ -164,8 +172,10 @@ namespace flow_cutter{
 			bool node_out_flag;
 			OriginalOutArcIter base_iter;
 
+			// node_out_flag is fixed across a range, so it never distinguishes two
+			// positions in it.
 			friend bool operator==(OutArcIter l, OutArcIter r){
-				return l.base_iter == r.base_iter && l.intra_arc == r.intra_arc && l.node_out_flag == r.node_out_flag;
+				return l.base_iter == r.base_iter && l.intra_arc == r.intra_arc;
 			}
 
 			friend bool operator!=(OutArcIter l, OutArcIter r){

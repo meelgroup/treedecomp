@@ -78,6 +78,8 @@ namespace flow_cutter{
 		};
 	}
 
+	// should_follow_arc(xy, y) gets the head of xy along with the arc: recomputing
+	// head(xy) in the callback used to be one of the most expensive lines here.
 	class PseudoDepthFirstSearch{
 	public:
 		template<class Graph, class WasNodeSeen, class SeeNode, class ShouldFollowArc, class OnNewArc>
@@ -86,17 +88,20 @@ namespace flow_cutter{
 			const WasNodeSeen&was_node_seen, const SeeNode&see_node,
 			const ShouldFollowArc&should_follow_arc, const OnNewArc&on_new_arc
 		)const{
+			const auto out_arc = graph.out_arc;
+			const auto head = graph.head;
+
 			int stack_end = 1;
 			auto&stack = tmp.node_space;
 			stack[0] = source_node;
 
 			while(stack_end != 0){
 				int x = stack[--stack_end];
-				for(auto xy : graph.out_arc(x)){
+				for(auto xy : out_arc(x)){
 					on_new_arc(xy);
-					int y = graph.head(xy);
+					int y = head(xy);
 					if(!was_node_seen(y)){
-						if(should_follow_arc(xy)){
+						if(should_follow_arc(xy, y)){
 							if(!see_node(y))
 								return;
 							stack[stack_end++] = y;
@@ -115,16 +120,19 @@ namespace flow_cutter{
 			const WasNodeSeen&was_node_seen, const SeeNode&see_node,
 			const ShouldFollowArc&should_follow_arc, const OnNewArc&on_new_arc
 		)const{
+			const auto out_arc = graph.out_arc;
+			const auto head = graph.head;
+
 			int queue_begin = 0, queue_end = 1;
 			auto&queue = tmp.node_space;
 			queue[0] = source_node;
 			while(queue_begin != queue_end){
 				int x = queue[queue_begin++];
-				for(auto xy : graph.out_arc(x)){
+				for(auto xy : out_arc(x)){
 					on_new_arc(xy);
-					int y = graph.head(xy);
+					int y = head(xy);
 					if(!was_node_seen(y)){
-						if(should_follow_arc(xy)){
+						if(should_follow_arc(xy, y)){
 							if(!see_node(y))
 								return;
 							queue[queue_end++] = y;
@@ -175,6 +183,12 @@ namespace flow_cutter{
 			return static_cast<int>(flow(a))-1;
 		}
 
+		//! Flow on back_arc(a), without computing back_arc(a): increase/decrease
+		//! keep the raw entries of an arc and its back arc summing to 2.
+		int back(int a)const{
+			return -(*this)(a);
+		}
+
 		void swap(UnitFlow&o){
 			flow.swap(o.flow);
 		}
@@ -199,6 +213,24 @@ namespace flow_cutter{
 			return extra_node != -1;
 		}
 
+		struct WasNodeSeen{
+			const BasicNodeSet&set;
+			bool operator()(int x)const{ return set.inside_flag(x); }
+		};
+
+		template<class OnNewNode>
+		struct SeeNode{
+			BasicNodeSet&set;
+			const OnNewNode&on_new_node;
+
+			bool operator()(int x)const{
+				SLOW_DEBUG_DO(assert(!set.inside_flag(x)));
+				set.inside_flag.set(x, true);
+				++set.node_count_inside_;
+				return on_new_node(x);
+			}
+		};
+
 		template<class Graph, class SearchAlgorithm, class OnNewNode, class ShouldFollowArc, class OnNewArc>
 		void grow(
 			const Graph&graph,
@@ -210,20 +242,11 @@ namespace flow_cutter{
 		){
 			assert(can_grow());
 
-			auto see_node = [&](int x){
-#ifdef SLOW_DEBUG
-				assert(!inside_flag(x));
-#endif
-				inside_flag.set(x, true);
-				++this->node_count_inside_;
-				return on_new_node(x);
-			};
-
-			auto was_node_seen = [&](int x){
-				return inside_flag(x);
-			};
-
-			search_algo(graph, tmp, extra_node, was_node_seen, see_node, should_follow_arc, on_new_arc);
+			search_algo(
+				graph, tmp, extra_node,
+				WasNodeSeen{*this}, SeeNode<OnNewNode>{*this, on_new_node},
+				should_follow_arc, on_new_arc
+			);
 			extra_node = -1;
 		}
 
@@ -279,6 +302,19 @@ namespace flow_cutter{
 			return node_set.can_grow();
 		}
 
+		template<class OnNewArc, class HasFlow>
+		struct CollectCutFront{
+			std::vector<int>&front;
+			const OnNewArc&on_new_arc;
+			const HasFlow&has_flow;
+
+			void operator()(int xy)const{
+				if(has_flow(xy))
+					front.push_back(xy);
+				on_new_arc(xy);
+			}
+		};
+
 		template<class Graph, class SearchAlgorithm, class OnNewNode, class ShouldFollowArc, class OnNewArc, class HasFlow>
 		void grow(
 			const Graph&graph,
@@ -289,13 +325,10 @@ namespace flow_cutter{
 			const OnNewArc&on_new_arc, // on_new_arc(xy) is called for ever arc xy with x in the set
 			const HasFlow&has_flow
 		){
-			auto my_on_new_arc = [&](int xy){
-				if(has_flow(xy))
-					front.push_back(xy);
-				on_new_arc(xy);
-			};
-
-			node_set.grow(graph, tmp, search_algo, on_new_node, should_follow_arc, my_on_new_arc);
+			node_set.grow(
+				graph, tmp, search_algo, on_new_node, should_follow_arc,
+				CollectCutFront<OnNewArc, HasFlow>{front, on_new_arc, has_flow}
+			);
 		}
 
 		bool is_inside(int x) const {
@@ -353,6 +386,22 @@ namespace flow_cutter{
 			return node_set.can_grow();
 		}
 
+		// Only followed arcs need recording: an arc into y that is not followed
+		// leaves y unseen, so a later followed arc overwrites predecessor[y]
+		// before anyone reads it.
+		template<class ShouldFollowArc>
+		struct RecordPredecessor{
+			ArrayIDFunc<int>&predecessor;
+			const ShouldFollowArc&should_follow_arc;
+
+			bool operator()(int xy, int y)const{
+				if(!should_follow_arc(xy, y))
+					return false;
+				predecessor[y] = xy;
+				return true;
+			}
+		};
+
 		template<class Graph, class SearchAlgorithm, class OnNewNode, class ShouldFollowArc, class OnNewArc>
 		void grow(
 			const Graph&graph,
@@ -362,12 +411,11 @@ namespace flow_cutter{
 			const ShouldFollowArc&should_follow_arc, // is called for a subset of arcs and must say whether the arc sould be followed
 			const OnNewArc&on_new_arc // on_new_arc(xy) is called for ever arc xy with x in the set
 		){
-			auto my_should_follow_arc = [&](int xy){
-				predecessor[graph.head(xy)] = xy;
-				return should_follow_arc(xy);
-			};
-
-			node_set.grow(graph, tmp, search_algo, on_new_node, my_should_follow_arc, on_new_arc);
+			node_set.grow(
+				graph, tmp, search_algo, on_new_node,
+				RecordPredecessor<ShouldFollowArc>{predecessor, should_follow_arc},
+				on_new_arc
+			);
 		}
 
 		bool is_inside(int x) const {
@@ -579,66 +627,98 @@ namespace flow_cutter{
 			return pierce_node;
 		}
 
-		template<class Graph>
-		bool is_saturated(const Graph&graph, int direction, int xy){
-			if(direction == target_side)
-				xy = graph.back_arc(xy);
-			return graph.capacity(xy) == flow(xy);
-		}
+		// The callbacks the searches run on are named structs rather than lambdas:
+		// everything below inlines into one huge symbol, and a profile of it is
+		// unreadable when every frame is called "operator()".
 
+		// graph is held by value (a handful of ints and pointers) so that its
+		// fields stay in registers instead of being reloaded on every arc.
+		template<class Graph>
+		struct FollowUnsaturatedArc{
+			Graph graph;
+			const UnitFlow&flow;
+			int direction;
+
+			bool operator()(int xy, int /*y*/)const{
+				if(direction == target_side){
+					SLOW_DEBUG_DO(assert(graph.capacity.back_capacity(xy) == graph.capacity(graph.back_arc(xy))));
+					SLOW_DEBUG_DO(assert(flow.back(xy) == flow(graph.back_arc(xy))));
+					return graph.capacity.back_capacity(xy) != flow.back(xy);
+				}
+				return graph.capacity(xy) != flow(xy);
+			}
+		};
+
+		struct VisitEveryNode{
+			bool operator()(int /*x*/)const{ return true; }
+		};
+
+		struct StopAtNodeInside{
+			const AssimilatedNodeSet&set;
+			int&hit;
+
+			bool operator()(int x)const{
+				if(!set.is_inside(x))
+					return true;
+				hit = x;
+				return false;
+			}
+		};
+
+		struct IsNodeInside{
+			const AssimilatedNodeSet&set;
+			bool operator()(int x)const{ return set.is_inside(x); }
+		};
+
+		struct IgnoreArc{
+			void operator()(int /*xy*/)const{}
+		};
+
+		struct HasFlow{
+			const UnitFlow&flow;
+			bool operator()(int xy)const{ return flow(xy) != 0; }
+		};
+
+		template<class Graph>
+		struct AugmentFlowAlongArc{
+			const Graph&graph;
+			UnitFlow&flow;
+			bool decrease;
+
+			void operator()(int xy)const{
+				if(decrease)
+					flow.decrease(graph, xy);
+				else
+					flow.increase(graph, xy);
+			}
+		};
 
 		template<class Graph, class SearchAlgorithm>
 		void grow_reachable_sets(const Graph&graph, TemporaryData&tmp, const SearchAlgorithm&search_algo, int pierced_side){
 
-			int my_source_side = pierced_side;
-			int my_target_side = 1-pierced_side;
+			const int my_source_side = pierced_side;
+			const int my_target_side = 1-pierced_side;
 
-#ifdef SLOW_DEBUG
-			assert(reachable[pierced_side].can_grow());
-#endif
-
-			auto is_forward_saturated = [&,this](int xy){
-				return this->is_saturated(graph, my_source_side, xy);
-			};
-
-			auto is_backward_saturated = [&,this](int xy){
-				return this->is_saturated(graph, my_target_side, xy);
-			};
-
-			auto is_source = [&](int x){
-				return assimilated[my_source_side].is_inside(x);
-			};
-
-			auto is_target = [&](int x){
-				return assimilated[my_target_side].is_inside(x);
-			};
-
-			auto increase_flow = [&](int xy){
-				if(pierced_side == source_side)
-					flow.increase(graph, xy);
-				else
-					flow.decrease(graph, xy);
-			};
+			SLOW_DEBUG_DO(assert(reachable[pierced_side].can_grow()));
 
 			bool was_flow_augmented = false;
 
 			int target_hit;
 			do{
 				target_hit = -1;
-				auto on_new_node = [&](int x){
-					if(is_target(x)){
-						target_hit = x;
-						return false;
-					} else
-						return true;
-				};
-				auto should_follow_arc = [&](int xy){ return !is_forward_saturated(xy); };
-				auto on_new_arc = [](int /*xy*/){};
-				reachable[my_source_side].grow(graph, tmp, search_algo, on_new_node, should_follow_arc, on_new_arc);
+				reachable[my_source_side].grow(
+					graph, tmp, search_algo,
+					StopAtNodeInside{assimilated[my_target_side], target_hit},
+					FollowUnsaturatedArc<Graph>{graph, flow, my_source_side},
+					IgnoreArc{}
+				);
 
 				if(target_hit != -1){
 					check_flow_conservation(graph);
-					reachable[my_source_side].forall_arcs_in_path_to(graph, is_source, target_hit, increase_flow);
+					reachable[my_source_side].forall_arcs_in_path_to(
+						graph, IsNodeInside{assimilated[my_source_side]}, target_hit,
+						AugmentFlowAlongArc<Graph>{graph, flow, pierced_side != source_side}
+					);
 					check_flow_conservation(graph);
 					reachable[my_source_side].reset(assimilated[my_source_side]);
 
@@ -649,39 +729,27 @@ namespace flow_cutter{
 
 			if(was_flow_augmented){
 				reachable[my_target_side].reset(assimilated[my_target_side]);
-				auto on_new_node = [&](int /*x*/){return true;};
-				auto should_follow_arc = [&](int xy){ return !is_backward_saturated(xy); };
-				auto on_new_arc = [](int/* xy*/){};
-				reachable[my_target_side].grow(graph, tmp, search_algo, on_new_node, should_follow_arc, on_new_arc);
+				reachable[my_target_side].grow(
+					graph, tmp, search_algo, VisitEveryNode{},
+					FollowUnsaturatedArc<Graph>{graph, flow, my_target_side},
+					IgnoreArc{}
+				);
 			}
 
 		}
 
 		template<class Graph, class SearchAlgorithm>
 		void grow_assimilated_sets(const Graph&graph, TemporaryData&tmp, const SearchAlgorithm&search_algo){
-			auto is_forward_saturated = [&,this](int xy){
-				return this->is_saturated(graph, source_side, xy);
-			};
+			const int side =
+				reachable[source_side].node_count_inside() <= reachable[target_side].node_count_inside()
+					? source_side : target_side;
 
-			auto is_backward_saturated = [&,this](int xy){
-				return this->is_saturated(graph, target_side, xy);
-			};
-
-			if(reachable[source_side].node_count_inside() <= reachable[target_side].node_count_inside()){
-				auto on_new_node = [&](int/* x*/){return true;};
-				auto should_follow_arc = [&](int xy){ return !is_forward_saturated(xy); };
-				auto on_new_arc = [](int/* xy*/){};
-				auto has_flow = [&](int xy){ return flow(xy) != 0; };
-				assimilated[source_side].grow(graph, tmp, search_algo, on_new_node, should_follow_arc, on_new_arc, has_flow);
-				assimilated[source_side].shrink_cut_front(graph);
-			}else{
-				auto on_new_node = [&](int/* x*/){return true;};
-				auto should_follow_arc = [&](int xy){ return !is_backward_saturated(xy); };
-				auto on_new_arc = [](int/* xy*/){};
-				auto has_flow = [&](int xy){ return flow(xy) != 0; };
-				assimilated[target_side].grow(graph, tmp, search_algo, on_new_node, should_follow_arc, on_new_arc, has_flow);
-				assimilated[target_side].shrink_cut_front(graph);
-			}
+			assimilated[side].grow(
+				graph, tmp, search_algo, VisitEveryNode{},
+				FollowUnsaturatedArc<Graph>{graph, flow, side},
+				IgnoreArc{}, HasFlow{flow}
+			);
+			assimilated[side].shrink_cut_front(graph);
 		}
 
 		template<class Graph>
@@ -744,23 +812,40 @@ namespace flow_cutter{
 
 	class DistanceAwareCutter{
 	private:
+		struct NeverSeen{
+			bool operator()(int /*x*/)const{ return false; }
+		};
+
+		struct AlwaysSeeNode{
+			bool operator()(int /*x*/)const{ return true; }
+		};
+
+		struct IgnoreArc{
+			void operator()(int /*xy*/)const{}
+		};
+
+		template<class Graph>
+		struct RelaxHopDistance{
+			const Graph&graph;
+			ArrayIDFunc<int>&dist;
+
+			bool operator()(int xy, int y)const{
+				if(dist(graph.tail(xy)) >= dist(y) - 1)
+					return false;
+				dist[y] = dist(graph.tail(xy)) + 1;
+				return true;
+			}
+		};
+
 		template<class Graph>
 		static void compute_hop_distance_from(const Graph&graph, TemporaryData&tmp, int source, ArrayIDFunc<int>&dist){
 			dist.fill(std::numeric_limits<int>::max());
 			dist[source] = 0;
 
-			auto was_node_seen = [&](int/* x*/){return false;};
-			auto see_node = [](int/* x*/){ return true; };
-			auto should_follow_arc = [&](int xy){
-				if(dist(graph.tail(xy)) < dist(graph.head(xy)) - 1){
-					dist[graph.head(xy)] = dist(graph.tail(xy))+1;
-					return true;
-				}else{
-					return false;
-				}
-			};
-			auto on_new_arc = [&](int/* xy*/){};
-			BreadthFirstSearch()(graph, tmp, source, was_node_seen, see_node, should_follow_arc, on_new_arc);
+			BreadthFirstSearch()(
+				graph, tmp, source,
+				NeverSeen{}, AlwaysSeeNode{}, RelaxHopDistance<Graph>{graph, dist}, IgnoreArc{}
+			);
 		}
 	public:
 		template<class Graph>
