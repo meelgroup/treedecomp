@@ -305,7 +305,9 @@ int main(int argc, char** argv) {
   if (conf.verb >= 1) cout << "c centroid bag: " << centroid << endl;
 
   if (!conf.dot_file.empty()) {
-    write_dot(conf.dot_file, td, nodes);
+    // primal_alt, not `nodes`: with --tdcontract 0 the decomposed graph still
+    // has all nvars vertices, and the bags refer to them.
+    write_dot(conf.dot_file, td, primal_alt.numNodes());
     cout << "c o [td] Wrote tree decomposition to file: " << conf.dot_file << endl;
     cout << "c o [td] You can convert it to pdf using the command: dot -Tpdf "
          << conf.dot_file << " -o td_tree.pdf" << endl;
