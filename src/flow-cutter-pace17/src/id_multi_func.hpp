@@ -6,13 +6,14 @@
 #include "range.hpp"
 #include "chain.hpp"
 #include <cassert>
+#include "treedecomp_defs.hpp"
 
 struct RangeIDIDMultiFunc{
 	int preimage_count()const{ return range_begin.preimage_count()-1; }
 	int image_count()const{ return range_begin(preimage_count()); }
 
 	CountRange operator()(int id)const{
-		assert(0 <= id && id < preimage_count() && "id out of bounds");
+		SLOW_DEBUG_DO(assert(0 <= id && id < preimage_count() && "id out of bounds"));
 		return count_range(range_begin(id), range_begin(id+1));
 	}
 

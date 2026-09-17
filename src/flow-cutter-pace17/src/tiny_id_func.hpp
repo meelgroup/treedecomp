@@ -5,6 +5,7 @@
 #include <utility>
 #include "id_func.hpp"
 #include "array_id_func.hpp"
+#include "treedecomp_defs.hpp"
 
 template<int bit_count>
 struct TinyIntIDFunc{
@@ -32,20 +33,23 @@ public:
 			set(i, other(i));
 	}
 
-	std::uint64_t operator()(int id)const{
-		assert(0 <= id && id < preimage_ && "id out of bounds");
+	// ids are always non-negative, so the unsigned cast lets / and % become a
+	// plain shift and mask instead of gcc's signed sign-correction sequence.
+	static int index_of(int id){ return static_cast<unsigned>(id) / entry_count_per_uint64; }
+	static int offset_of(int id){ return (static_cast<unsigned>(id) % entry_count_per_uint64)*bit_count; }
 
-		int index = id / entry_count_per_uint64;
-		int offset = (id % entry_count_per_uint64)*bit_count;
-		return (data_[index] >> offset) & entry_mask;
+	std::uint64_t operator()(int id)const{
+		SLOW_DEBUG_DO(assert(0 <= id && id < preimage_ && "id out of bounds"));
+
+		return (data_[index_of(id)] >> offset_of(id)) & entry_mask;
 	}
 
 	void set(int id, std::uint64_t value){
-		assert(0 <= id && id < preimage_ && "id out of bounds");
-		assert(value <= entry_mask && "value out of bounds");
+		SLOW_DEBUG_DO(assert(0 <= id && id < preimage_ && "id out of bounds"));
+		SLOW_DEBUG_DO(assert(value <= entry_mask && "value out of bounds"));
 
-		int index = id / entry_count_per_uint64;
-		int offset = (id % entry_count_per_uint64)*bit_count;
+		const int index = index_of(id);
+		const int offset = offset_of(id);
 
 		data_[index] ^= ((((data_[index] >> offset) & entry_mask) ^ value) << offset);
 	}

@@ -4,6 +4,7 @@
 #include "range.hpp"
 #include <cassert>
 #include <iterator>
+#include "treedecomp_defs.hpp"
 
 struct CountIterator{
 	typedef int value_type;
@@ -41,7 +42,7 @@ inline CountIterator operator+(CountIterator::difference_type l, CountIterator r
 
 typedef Range<CountIterator> CountRange;
 
-inline CountRange count_range(int n){assert(n >= 0); return {CountIterator{0}, CountIterator{n}}; }
-inline CountRange count_range(int begin, int end){assert(begin <= end);return {CountIterator{begin}, CountIterator{end}};}
+inline CountRange count_range(int n){SLOW_DEBUG_DO(assert(n >= 0)); return {CountIterator{0}, CountIterator{n}}; }
+inline CountRange count_range(int begin, int end){SLOW_DEBUG_DO(assert(begin <= end));return {CountIterator{begin}, CountIterator{end}};}
 
 #endif

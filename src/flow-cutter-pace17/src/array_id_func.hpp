@@ -5,6 +5,7 @@
 #include <type_traits>
 #include <algorithm>
 #include <cassert>
+#include "treedecomp_defs.hpp"
 
 template<class T>
 class ArrayIDFunc{
@@ -89,22 +90,24 @@ public:
 		return *this;
 	}
 
+	// These accessors are the innermost flow-cutter loops; their bounds checks
+	// alone cost ~25% of the runtime, hence SLOW_DEBUG rather than plain assert.
 	// IDFunc
 	int preimage_count() const{return preimage_count_;}
 
 	const T&operator()(int id) const{
-		assert(0 <= id && id < preimage_count_ && "id out of bounds");
+		SLOW_DEBUG_DO(assert(0 <= id && id < preimage_count_ && "id out of bounds"));
 		return data_[id];
 	}
 
 	// Mutable IDFunc
 	void set(int id, T t){
-		assert(0 <= id && id < preimage_count_ && "id out of bounds");
+		SLOW_DEBUG_DO(assert(0 <= id && id < preimage_count_ && "id out of bounds"));
 		data_[id] = std::move(t);
 	}
 
 	T move(int id){
-		assert(0 <= id && id < preimage_count_ && "id out of bounds");
+		SLOW_DEBUG_DO(assert(0 <= id && id < preimage_count_ && "id out of bounds"));
 		return std::move(data_[id]);
 	}
 
@@ -114,12 +117,12 @@ public:
 
 	// Array only functionality
 	T&operator[](int id){
-		assert(0 <= id && id < preimage_count_ && "id out of bounds");
+		SLOW_DEBUG_DO(assert(0 <= id && id < preimage_count_ && "id out of bounds"));
 		return data_[id];
 	}
 
 	const T&operator[](int id) const{
-		assert(0 <= id && id < preimage_count_ && "id out of bounds");
+		SLOW_DEBUG_DO(assert(0 <= id && id < preimage_count_ && "id out of bounds"));
 		return data_[id];
 	}
 
@@ -171,9 +174,9 @@ struct ArrayIDIDFunc : public ArrayIDFunc<int>{
 	int image_count()const { return image_count_; }
 
 	int operator()(int x) const{
-		assert(0 <= x && x < preimage_count_ && "preimage id out of bounds");
+		SLOW_DEBUG_DO(assert(0 <= x && x < preimage_count_ && "preimage id out of bounds"));
 		int y = data_[x];
-		assert(0 <= y && y < image_count_ && "image id out of bounds");
+		SLOW_DEBUG_DO(assert(0 <= y && y < image_count_ && "image id out of bounds"));
 		return y;
 	}
 

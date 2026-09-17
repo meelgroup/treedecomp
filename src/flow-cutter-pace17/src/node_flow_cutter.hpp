@@ -16,17 +16,21 @@ namespace flow_cutter{
 	//!
 
 	namespace expanded_graph{
+		// Every id here is non-negative, so halving is a shift; leaving it as a
+		// signed division adds a sign-correction to the innermost cutter loop.
+		inline int half(int x){ return static_cast<unsigned>(x) >> 1; }
+
 		inline int expanded_node_count(int original_node_count){ return 2*original_node_count; }
 		inline int expanded_arc_count(int original_node_count, int original_arc_count){ return 2*(original_node_count+original_arc_count); }
-		inline int expanded_node_to_original_node(int x){ return x/2; }
+		inline int expanded_node_to_original_node(int x){ return half(x); }
 		inline int original_node_to_expanded_node(int x, bool is_out){ return 2*x+is_out; }
 		inline bool get_expanded_node_out_flag(int x){ return x&1; }
 		inline bool is_expanded_intra_arc(int x, int original_arc_count){ return x >= 2*original_arc_count; }
 		inline bool is_expanded_inter_arc(int x, int original_arc_count){ return x < 2*original_arc_count; }
 		inline bool get_expanded_arc_tail_out_flag(int x){return x&1;}
-		inline int expanded_inter_arc_to_original_arc(int x, int original_arc_count){ (void)original_arc_count; return x/2; }
+		inline int expanded_inter_arc_to_original_arc(int x, int original_arc_count){ (void)original_arc_count; return half(x); }
 		inline int original_arc_to_expanded_inter_arc(int x, bool tail_out_flag, int/* original_arc_count*/){ return 2*x+tail_out_flag; }
-		inline int expanded_intra_arc_to_original_node(int x, int original_arc_count){ (void)original_arc_count; return x/2-original_arc_count; }
+		inline int expanded_intra_arc_to_original_node(int x, int original_arc_count){ return half(x)-original_arc_count; }
 		inline int original_node_to_expanded_intra_arc(int x, bool tail_out_flag, int original_arc_count){ return 2*(original_arc_count+x)+tail_out_flag; }
 
 		template<class OriginalTail>

@@ -2,6 +2,7 @@
 #define ID_FUNC_H
 
 #include <cassert>
+#include "treedecomp_defs.hpp"
 #include <utility>
 #include "id_func_traits.hpp"
 #include <type_traits>
@@ -11,7 +12,7 @@ struct LambdaIDFunc{
 	int preimage_count()const{return preimage_count_;}
 
 	typename id_func_image_type<Func>::type operator()(int id)const{
-		assert(0 <= id && id <= preimage_count_ && "id out of bounds");
+		SLOW_DEBUG_DO(assert(0 <= id && id <= preimage_count_ && "id out of bounds"));
 		return func_(id);
 	}
 
@@ -35,9 +36,9 @@ struct LambdaIDIDFunc{
 	int image_count()const{return image_count_;}
 
 	int operator()(int preimage)const{
-		assert(0 <= preimage && preimage <= preimage_count() && "preimage out of bounds");
+		SLOW_DEBUG_DO(assert(0 <= preimage && preimage <= preimage_count() && "preimage out of bounds"));
 		int image = id_func_(preimage);
-		assert(0 <= image && image <= image_count() && "image out of bounds");
+		SLOW_DEBUG_DO(assert(0 <= image && image <= image_count() && "image out of bounds"));
 		return image;
 	}
 
