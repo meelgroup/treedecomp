@@ -31,6 +31,7 @@ struct Config {
   int td_iters = 900;
   int td_band_pct = 10;
   int td_dense_pct = 30;
+  int td_sep_sel = 0;
 
   // Graph cutoffs (mirror ganak conf.*)
   int td_max_edges = 70000;
@@ -167,6 +168,7 @@ int main(int argc, char** argv) {
   add_int("--tditers", conf.td_iters,  "FlowCutter iterations (restarts)");
   add_int("--tdband", conf.td_band_pct, "How much wider than the narrowest TD seen a better-splitting candidate may be");
   add_int("--tddense", conf.td_dense_pct, "width/nodes percentage above which the split decides the TD choice");
+  add_int("--tdsepsel", conf.td_sep_sel, "FlowCutter separator selection: 0=node_min_expansion 1=edge_min_expansion 2=node_first 3=edge_first");
   add_int("--tdmaxedges", conf.td_max_edges, "Skip TD if primal has more than this many edges");
   add_dbl("--tdmaxdensity", conf.td_max_density, "Skip TD if primal density exceeds this");
   add_int("--tdmaxedgeratio", conf.td_max_edge_var_ratio, "Skip TD if edge/var ratio exceeds this");
@@ -316,7 +318,8 @@ int main(int argc, char** argv) {
 
   TWD::IFlowCutter fc(primal_alt.numNodes(), primal_alt.numEdges(), conf.verb);
   fc.importGraph(primal_alt);
-  auto td = fc.constructTD(conf.td_steps, conf.td_iters, conf.td_band_pct, conf.td_dense_pct);
+  auto td = fc.constructTD(conf.td_steps, conf.td_iters, conf.td_band_pct,
+      conf.td_dense_pct, conf.td_sep_sel);
   const int tw = td.width();
   if (conf.verb >= 1) cout << "c TD width: " << tw << endl;
 

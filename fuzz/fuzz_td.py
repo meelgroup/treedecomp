@@ -54,6 +54,8 @@ def set_up_parser():
                       help="CNF generator. Default: %default")
     parser.add_option("--outdir", dest="outdir", default=os.path.join(HERE, "out"),
                       help="Where failing cases are kept. Default: %default")
+    parser.add_option("--max-timeouts", dest="max_timeouts", type=int, default=2,
+                      help="Fail the run above this many timeouts. Default: %default")
     return parser
 
 
@@ -96,6 +98,10 @@ CHOICE_OPTS = [
     # TD selection tunables
     ("tdband",         ["0", "10", "100", "1000"],          [2, 4, 4, 2]),
     ("tddense",        ["0", "1", "30", "100"],             [2, 3, 4, 3]),
+    # Separator selection. node_min_expansion (0) is the production path, but the
+    # edge ones (1, 3) build a graph whose arcs have capacity in both directions
+    # and so exercise a different flow representation
+    ("tdsepsel",       ["0", "1", "2", "3"],                [10, 3, 3, 3]),
     ("v",              ["0", "1"],                          [1, 1]),
 ]
 
@@ -209,7 +215,11 @@ def one_test(seed, tmpdir):
         sys.exit(-1)
 
     if timed_out:
+        # A timeout is not fatal on its own -- a dense enough graph is legitimately
+        # slow -- but a run that hangs shows up here first, so they are counted and
+        # the run fails if too many pile up.
         print(f"{YELLOW}TIMEOUT after {options.maxtime}s, seed {seed}{NC}")
+        timeouts.append(cmd_str(cmd))
         return "timeout"
     if rc < 0:
         die(f"treedecomp died on signal {-rc}")
@@ -258,6 +268,7 @@ if __name__ == "__main__":
         rnd_seed = options.rnd_seed
     random.seed(rnd_seed)
 
+    timeouts = []
     tally = {"checked": 0, "skipped": 0, "timeout": 0}
     for i in range(options.only):
         seed = options.rnd_seed if options.rnd_seed is not None else int.from_bytes(os.urandom(8))
@@ -270,4 +281,10 @@ if __name__ == "__main__":
           f"{tally['skipped']} skipped (cutoffs), {tally['timeout']} timed out ==={NC}")
     if tally["checked"] == 0:
         print(f"{RED}ERROR: not a single decomposition got checked{NC}")
+        sys.exit(-1)
+    if tally["timeout"] > options.max_timeouts:
+        print(f"{RED}ERROR: {tally['timeout']} timeouts, more than the {options.max_timeouts} "
+              f"allowed -- treedecomp is most likely hanging{NC}")
+        for cmd in timeouts:
+            print(f"      {cmd}")
         sys.exit(-1)

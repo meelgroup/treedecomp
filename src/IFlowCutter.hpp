@@ -46,8 +46,12 @@ public:
   void importGraph(const Graph& g);
   // band_pct: how much wider than the narrowest TD seen a better-splitting
   // candidate may be. dense_pct: width/nodes above which the split decides
+  // sep_sel indexes flow_cutter::Config::SeparatorSelection. Only the default,
+  // node_min_expansion, is used in production; the rest exist so the fuzzer can
+  // reach them, in particular the edge ones, whose graph gives every arc
+  // capacity in both directions.
   TreeDecomposition constructTD(const int64_t steps = 1e5, const int iters = 900,
-      int band_pct = 10, int dense_pct = 30);
+      int band_pct = 10, int dense_pct = 30, int sep_sel = 0);
   auto num_nodes() const { return nodes; }
 
 private:

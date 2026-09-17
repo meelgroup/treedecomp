@@ -25,7 +25,15 @@ with randomised options, and checks the decomposition with `fuzz/verify_td.py`
 width). Failing cases are moved to `fuzz/out/` and the repro commands printed.
 Some runs are `skipped` because a random cutoff makes the tool bail before
 emitting a decomposition; that is expected, but if nothing gets `checked` the
-fuzzer fails.
+fuzzer fails. It also fails above `--max-timeouts` (2), since a hang shows up as
+a timeout first.
+
+`--tdsepsel` picks the separator selection, and the fuzzer randomises it.
+Production only ever uses 0, `node_min_expansion`, but 1 and 3 are the
+edge-cutting ones, whose graph gives every arc capacity in *both* directions.
+That makes the flow three-valued, which the node graph never does. Keep those in
+the fuzz set: a flow representation that only works for the node graph passes
+every other test in this repo.
 
 `fuzz/verify_td.py` needs the graph that was actually decomposed, which
 `--tdgraphout` writes. Do not reimplement the primal-graph construction and

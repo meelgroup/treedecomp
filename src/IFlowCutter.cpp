@@ -705,7 +705,7 @@ private:
 }
 
 TreeDecomposition IFlowCutter::constructTD(const int64_t conf_steps, int conf_iters,
-    int band_pct, int dense_pct)
+    int band_pct, int dense_pct, int sep_sel)
 {
   TreeDecomposition td;
   ArrayIDIDFunc preorder, inv_preorder;
@@ -817,7 +817,8 @@ TreeDecomposition IFlowCutter::constructTD(const int64_t conf_steps, int conf_it
           config.cutter_count = 1;
           config.random_seed = rand_gen();
           config.max_cut_size = 10000;
-          config.separator_selection = flow_cutter::Config::SeparatorSelection::node_min_expansion;
+          config.separator_selection =
+            static_cast<flow_cutter::Config::SeparatorSelection>(sep_sel);
 
           bool reduced = false;
           for(int i=2; i < conf_iters && steps > 0;++i){
