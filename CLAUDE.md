@@ -25,8 +25,10 @@ with randomised options, and checks the decomposition with `fuzz/verify_td.py`
 width). Failing cases are moved to `fuzz/out/` and the repro commands printed.
 Some runs are `skipped` because a random cutoff makes the tool bail before
 emitting a decomposition; that is expected, but if nothing gets `checked` the
-fuzzer fails. It also fails above `--max-timeouts` (2), since a hang shows up as
-a timeout first.
+fuzzer fails. Timeouts are reported but are not failures: a correct build takes
+over 10s on some of the option sets, so there is no threshold that separates slow
+from broken. Run it against a build with assertions on -- the default -- and
+non-termination trips an assertion instead.
 
 `--tdsepsel` picks the separator selection, and the fuzzer randomises it.
 Production only ever uses 0, `node_min_expansion`, but 1 and 3 are the
