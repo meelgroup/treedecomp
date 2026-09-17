@@ -19,10 +19,17 @@ Run after every major change, 100 iterations at minimum:
 ./fuzz/fuzz_td.py --only 100 -t 30
 ```
 
+`fuzz/fuzz_session.sh [--num N]` runs N of them in a tmux session, forwarding
+its other arguments. Any number can share `fuzz/out/`, because every file either
+side of the run -- the CNF and the `--tdvis`/`--tdgraphout` paths -- is claimed
+with `unique_file()`, which creates it with `O_CREAT|O_EXCL` so the check and
+the claim cannot race. Add nothing to that directory by a fixed name.
+
 It generates CNFs with `../count_fuzzer/cnf-fuzz-brummayer.py`, runs the binary
 with randomised options, and checks the decomposition with `fuzz/verify_td.py`
 (coverage, edge coverage, connected subtree per vertex, tree shape, reported
-width). Failing cases are moved to `fuzz/out/` and the repro commands printed.
+width). A failing case is left in `fuzz/out/` and its repro commands printed;
+everything else is deleted as it goes.
 Some runs are `skipped` because a random cutoff makes the tool bail before
 emitting a decomposition; that is expected, but if nothing gets `checked` the
 fuzzer fails. Timeouts are reported but are not failures: a correct build takes

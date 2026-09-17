@@ -8,6 +8,7 @@ import os
 import random
 import shlex
 import signal
+import stat
 import subprocess
 import sys
 
@@ -53,8 +54,29 @@ def set_up_parser():
                       default=os.path.join(ROOT, "..", "count_fuzzer", "cnf-fuzz-brummayer.py"),
                       help="CNF generator. Default: %default")
     parser.add_option("--outdir", dest="outdir", default=os.path.join(HERE, "out"),
-                      help="Where failing cases are kept. Default: %default")
+                      help="Where generated files live. Default: %default")
     return parser
+
+
+def unique_file(prefix, suffix, max_num_files=100000):
+    """A path no other process will pick, so several fuzzers can share outdir.
+
+    O_CREAT|O_EXCL is the whole point: the check and the claim are one atomic
+    step, unlike testing os.path.exists first. Same mechanism as
+    ../count_fuzzer/fuzz.py.
+    """
+    os.makedirs(options.outdir, exist_ok=True)
+    counter = 1
+    while counter <= max_num_files:
+        path = os.path.join(options.outdir, f"{prefix}_{counter}{suffix}")
+        try:
+            fd = os.open(path, os.O_CREAT | os.O_EXCL, stat.S_IREAD | stat.S_IWRITE)
+            os.close(fd)
+            return path
+        except FileExistsError:
+            counter += 1
+    print(f"{RED}ERROR: no free filename under {options.outdir}{NC}")
+    sys.exit(-1)
 
 
 def cmd_str(command):
@@ -166,6 +188,14 @@ BAD_OUTPUT = ["Assertion", "assertion", "Sanitizer", "runtime error:",
               "terminate called", "std::bad_alloc", "Segmentation fault"]
 
 
+def cleanup(paths):
+    for path in paths:
+        try:
+            os.unlink(path)
+        except FileNotFoundError:
+            pass
+
+
 def reported_width(out):
     for line in out.splitlines():
         if line.startswith("c TD width:"):
@@ -173,28 +203,17 @@ def reported_width(out):
     return None
 
 
-def keep_failure(tag, cnf_path, dot_path, graph_path):
-    os.makedirs(options.outdir, exist_ok=True)
-    kept = []
-    for src in (cnf_path, dot_path, graph_path):
-        if src and os.path.exists(src):
-            dst = os.path.join(options.outdir, f"{tag}_{os.path.basename(src)}")
-            os.replace(src, dst)
-            kept.append(dst)
-    return kept
-
-
-def one_test(seed, tmpdir):
-    os.makedirs(tmpdir, exist_ok=True)
-    cnf_path = os.path.join(tmpdir, "fuzz.cnf")
-    dot_path = os.path.join(tmpdir, "fuzz.dot")
-    graph_path = os.path.join(tmpdir, "fuzz.graph")
-    for p in (dot_path, graph_path):
-        if os.path.exists(p):
-            os.remove(p)
+def one_test(seed):
+    # Every path treedecomp reads or writes is claimed through unique_file, so
+    # any number of fuzzers can run side by side over one outdir.
+    cnf_path = unique_file("fuzz", ".cnf")
+    dot_path = unique_file("fuzz", ".dot")
+    graph_path = unique_file("fuzz", ".graph")
+    paths = [cnf_path, dot_path, graph_path]
 
     nvars, gen_cmd = gen_cnf(cnf_path)
     if nvars is None:
+        cleanup(paths)
         return "skipped"
 
     cmd = ([options.exe] + gen_treedecomp_opts()
@@ -202,13 +221,12 @@ def one_test(seed, tmpdir):
     out, rc, timed_out = run(cmd, options.maxtime)
 
     def die(msg):
+        # the files stay behind on failure, which is what makes them reproducible
         print(f"{RED}ERROR: {msg}{NC}")
         print(f"{YELLOW}--> seed {seed}, to re-run by hand:{NC}")
         print(f"      {gen_cmd}")
         print(f"      {cmd_str(cmd)}")
-        kept = keep_failure(f"seed{seed}", cnf_path, dot_path, graph_path)
-        if kept:
-            print(f"{YELLOW}--> kept: {' '.join(kept)}{NC}")
+        print(f"{YELLOW}--> kept: {' '.join(paths)}{NC}")
         print(out[-4000:])
         sys.exit(-1)
 
@@ -218,6 +236,7 @@ def one_test(seed, tmpdir):
         # that fails to terminate trips an assertion long before it would hang.
         print(f"{YELLOW}TIMEOUT after {options.maxtime}s, seed {seed}{NC}")
         timeouts.append(cmd_str(cmd))
+        cleanup(paths)
         return "timeout"
     if rc < 0:
         die(f"treedecomp died on signal {-rc}")
@@ -227,10 +246,10 @@ def one_test(seed, tmpdir):
         if bad in out:
             die(f"treedecomp output contains '{bad}'")
 
-    if not os.path.exists(graph_path):
-        # a cutoff made treedecomp skip the TD before it got to the graph
-        return "skipped"
-    if not os.path.exists(dot_path):
+    # unique_file already created both, so emptiness is what says treedecomp
+    # bailed on a cutoff before writing them
+    if os.path.getsize(graph_path) == 0 or os.path.getsize(dot_path) == 0:
+        cleanup(paths)
         return "skipped"
 
     vcmd = [sys.executable, os.path.join(HERE, "verify_td.py"), graph_path, dot_path]
@@ -243,6 +262,7 @@ def one_test(seed, tmpdir):
         die("the decomposition is not a valid tree decomposition")
     if options.verbose:
         print(f"{GREEN}{vout.strip()}{NC}")
+    cleanup(paths)
     return "checked"
 
 
@@ -257,8 +277,6 @@ if __name__ == "__main__":
         print(f"ERROR: no CNF generator at '{options.fuzzer}', pass --fuzzer")
         sys.exit(-1)
 
-    tmpdir = os.path.join(HERE, "tmpdir")
-
     if options.rnd_seed is None:
         rnd_seed = int.from_bytes(os.urandom(8))
         print(f"Using seed: {rnd_seed}")
@@ -271,7 +289,7 @@ if __name__ == "__main__":
     for i in range(options.only):
         seed = options.rnd_seed if options.rnd_seed is not None else int.from_bytes(os.urandom(8))
         random.seed(seed)
-        tally[one_test(seed, tmpdir)] += 1
+        tally[one_test(seed)] += 1
         print(f"[{i + 1}/{options.only}] checked {tally['checked']} "
               f"skipped {tally['skipped']} timeout {tally['timeout']}")
 

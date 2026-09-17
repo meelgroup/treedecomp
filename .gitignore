@@ -4,6 +4,5 @@ build/
 /html/treedecomp.js
 /html/treedecomp.wasm
 fuzz/out/
-fuzz/tmpdir/
 /examples
 /fuzz/__pycache__
