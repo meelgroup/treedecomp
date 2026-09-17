@@ -80,6 +80,14 @@ namespace flow_cutter{
 
 	// should_follow_arc(xy, y) gets the head of xy along with the arc: recomputing
 	// head(xy) in the callback used to be one of the most expensive lines here.
+	//
+	// was_node_seen and should_follow_arc are combined with a non-short-circuiting
+	// & into a single branch. Nested, they were two coin flips -- a node is unseen
+	// 38% of the time and the arc is then followed 26% of the time -- and the
+	// mispredicts cost far more than always evaluating should_follow_arc, which is
+	// one residual-bit probe. Combined, the test is taken under 10% of the time and
+	// predicts well. This is why should_follow_arc has to stay side-effect free,
+	// and why see_node takes the arc that reached the node.
 	class PseudoDepthFirstSearch{
 	public:
 		template<class Graph, class WasNodeSeen, class SeeNode, class ShouldFollowArc, class OnNewArc>
@@ -99,13 +107,11 @@ namespace flow_cutter{
 				int x = stack[--stack_end];
 				for(auto xy : out_arc(x)){
 					on_new_arc(xy);
-					int y = head(xy);
-					if(!was_node_seen(y)){
-						if(should_follow_arc(xy, y)){
-							if(!see_node(y))
-								return;
-							stack[stack_end++] = y;
-						}
+					const int y = head(xy);
+					if(!was_node_seen(y) & should_follow_arc(xy, y)){
+						if(!see_node(y, xy))
+							return;
+						stack[stack_end++] = y;
 					}
 				}
 			}
@@ -130,70 +136,107 @@ namespace flow_cutter{
 				int x = queue[queue_begin++];
 				for(auto xy : out_arc(x)){
 					on_new_arc(xy);
-					int y = head(xy);
-					if(!was_node_seen(y)){
-						if(should_follow_arc(xy, y)){
-							if(!see_node(y))
-								return;
-							queue[queue_end++] = y;
-						}
+					const int y = head(xy);
+					if(!was_node_seen(y) & should_follow_arc(xy, y)){
+						if(!see_node(y, xy))
+							return;
+						queue[queue_end++] = y;
 					}
 				}
 			}
 		}
 	};
 
+	//! A unit flow stored as its residual rather than as the flow value: for each
+	//! arc a, whether another unit can be pushed along a, and whether one can be
+	//! pushed along back_arc(a). That is what the cutter's inner loop asks on
+	//! every arc, and asking it this way is a single bit probe -- no capacity to
+	//! evaluate and, for the backward direction, no back_arc lookup.
+	//!
+	//! The two directions are kept in separate bit vectors rather than as two bits
+	//! of one entry: a growth step only ever asks about one direction, so this way
+	//! it touches half as much memory.
+	//!
+	//! Both bits are needed. One does not determine the other when an arc has
+	//! capacity in both directions -- as in the edge-cutting graphs, where the
+	//! flow has three states and at flow 0 both directions have residual.
 	struct UnitFlow{
 		UnitFlow(){}
-		explicit UnitFlow(int preimage_count):flow(preimage_count){}
-
-		void clear(){
-			flow.fill(1);
-		}
+		explicit UnitFlow(int preimage_count):
+			forward_(preimage_count), backward_(preimage_count){}
 
 		int preimage_count()const{
-			return flow.preimage_count();
+			return forward_.preimage_count();
+		}
+
+		//! Can another unit be pushed along a, resp. along back_arc(a)?
+		bool can_push(int a)const{ return forward_(a); }
+		bool can_push_back(int a)const{ return backward_(a); }
+
+		//! Built a word at a time: setting single bits would read-modify-write the
+		//! same word 64 times over, and this runs for every arc on each init.
+		template<class Graph>
+		void clear(const Graph&graph){
+			const int arc_count = forward_.preimage_count();
+			for(int base=0; base<arc_count; base+=64){
+				const int end = std::min(64, arc_count-base);
+				std::uint64_t f = 0, b = 0;
+				for(int i=0; i<end; ++i){
+					// no flow anywhere yet, so an arc has residual iff it has capacity
+					f |= (std::uint64_t)(graph.capacity(base+i) != 0) << i;
+					b |= (std::uint64_t)(graph.capacity.back_capacity(base+i) != 0) << i;
+				}
+				forward_.data_[base/64] = f;
+				backward_.data_[base/64] = b;
+			}
+		}
+
+		//! Push one unit along a, resp. along back_arc(a). Unlike the flow value,
+		//! the residual does not say which way the augmenting side was walking, so
+		//! these stay two operations.
+		template<class Graph>
+		void push(const Graph&graph, int a){
+			SLOW_DEBUG_DO(assert(can_push(a) && "arc is saturated; can not be pushed along"));
+			set_flow(graph, a, flow(graph, a) + 1);
 		}
 
 		template<class Graph>
-		void increase(const Graph&graph, int a){
-			auto f = flow(a);
-#ifdef SLOW_DEBUG
-			assert((f == 0 || f == 1) && "Flow is already maximum; can not be increased");
-			assert(flow(graph.back_arc(a)) == 2-f && "Back arc has invalid flow");
-#endif
-			++f;
-			flow.set(a, f);
-			flow.set(graph.back_arc(a), 2-f);
+		void push_back(const Graph&graph, int a){
+			SLOW_DEBUG_DO(assert(can_push_back(a) && "back arc is saturated; can not be pushed along"));
+			set_flow(graph, a, flow(graph, a) - 1);
 		}
 
 		template<class Graph>
-		void decrease(const Graph&graph, int a){
-			auto f = flow(a);
-#ifdef SLOW_DEBUG
-			assert((f == 1 || f == 2) && "Flow is already minimum; can not be decreased");
-			assert(flow(graph.back_arc(a)) == 2-f && "Back arc has invalid flow");
-#endif
-			--f;
-			flow.set(a, f);
-			flow.set(graph.back_arc(a), 2-f);
-		}
-
-		int operator()(int a)const{
-			return static_cast<int>(flow(a))-1;
-		}
-
-		//! Flow on back_arc(a), without computing back_arc(a): increase/decrease
-		//! keep the raw entries of an arc and its back arc summing to 2.
-		int back(int a)const{
-			return -(*this)(a);
+		int flow(const Graph&graph, int a)const{
+			SLOW_DEBUG_DO(assert((can_push(a) || can_push_back(a)) && "arc has no residual either way"));
+			if(!can_push(a))
+				return graph.capacity(a);
+			if(!can_push_back(a))
+				return -graph.capacity.back_capacity(a);
+			// residual both ways, so the flow is strictly inside the capacities
+			return 0;
 		}
 
 		void swap(UnitFlow&o){
-			flow.swap(o.flow);
+			forward_.swap(o.forward_);
+			backward_.swap(o.backward_);
 		}
 
-		TinyIntIDFunc<2>flow;
+	private:
+		//! Record flow f on a, and -f on back_arc(a) to keep the two consistent.
+		template<class Graph>
+		void set_flow(const Graph&graph, int a, int f){
+			set_arc(graph, a, f);
+			set_arc(graph, graph.back_arc(a), -f);
+		}
+
+		template<class Graph>
+		void set_arc(const Graph&graph, int a, int f){
+			forward_.set(a, f != graph.capacity(a));
+			backward_.set(a, -f != graph.capacity.back_capacity(a));
+		}
+
+		BitIDFunc forward_, backward_;
 	};
 
 	class BasicNodeSet{
@@ -223,11 +266,11 @@ namespace flow_cutter{
 			BasicNodeSet&set;
 			const OnNewNode&on_new_node;
 
-			bool operator()(int x)const{
+			bool operator()(int x, int xy)const{
 				SLOW_DEBUG_DO(assert(!set.inside_flag(x)));
 				set.inside_flag.set(x, true);
 				++set.node_count_inside_;
-				return on_new_node(x);
+				return on_new_node(x, xy);
 			}
 		};
 
@@ -386,19 +429,19 @@ namespace flow_cutter{
 			return node_set.can_grow();
 		}
 
-		// Only followed arcs need recording: an arc into y that is not followed
+		// Recording the predecessor is a side effect, so it hangs off see_node
+		// rather than off the arc predicate, which is now speculative. Only
+		// followed arcs need recording anyway: an arc into y that is not followed
 		// leaves y unseen, so a later followed arc overwrites predecessor[y]
 		// before anyone reads it.
-		template<class ShouldFollowArc>
+		template<class OnNewNode>
 		struct RecordPredecessor{
 			ArrayIDFunc<int>&predecessor;
-			const ShouldFollowArc&should_follow_arc;
+			const OnNewNode&on_new_node;
 
-			bool operator()(int xy, int y)const{
-				if(!should_follow_arc(xy, y))
-					return false;
+			bool operator()(int y, int xy)const{
 				predecessor[y] = xy;
-				return true;
+				return on_new_node(y, xy);
 			}
 		};
 
@@ -412,9 +455,9 @@ namespace flow_cutter{
 			const OnNewArc&on_new_arc // on_new_arc(xy) is called for ever arc xy with x in the set
 		){
 			node_set.grow(
-				graph, tmp, search_algo, on_new_node,
-				RecordPredecessor<ShouldFollowArc>{predecessor, should_follow_arc},
-				on_new_arc
+				graph, tmp, search_algo,
+				RecordPredecessor<OnNewNode>{predecessor, on_new_node},
+				should_follow_arc, on_new_arc
 			);
 		}
 
@@ -468,7 +511,7 @@ namespace flow_cutter{
 			reachable[source_side].clear();
 			assimilated[target_side].clear();
 			reachable[target_side].clear();
-			flow.clear();
+			flow.clear(graph);
 
 			assimilated[source_side].set_extra_node(graph, p.source);
 			reachable[source_side].set_extra_node(graph, p.source);
@@ -482,7 +525,8 @@ namespace flow_cutter{
 			check_invariants(graph);
 		}
 
-		CutterStateDump dump_state()const{
+		template<class Graph>
+		CutterStateDump dump_state(const Graph&graph)const{
 			return {
 				id_func(
 					assimilated[source_side].max_node_count_inside(),
@@ -511,7 +555,7 @@ namespace flow_cutter{
 				id_func(
 					flow.preimage_count(),
 					[&](int xy){
-						return flow(xy) != 0;
+						return flow.flow(graph, xy) != 0;
 					}
 				)
 			};
@@ -631,33 +675,24 @@ namespace flow_cutter{
 		// everything below inlines into one huge symbol, and a profile of it is
 		// unreadable when every frame is called "operator()".
 
-		// graph is held by value (a handful of ints and pointers) so that its
-		// fields stay in registers instead of being reloaded on every arc.
-		template<class Graph>
 		struct FollowUnsaturatedArc{
-			Graph graph;
 			const UnitFlow&flow;
 			int direction;
 
 			bool operator()(int xy, int /*y*/)const{
-				if(direction == target_side){
-					SLOW_DEBUG_DO(assert(graph.capacity.back_capacity(xy) == graph.capacity(graph.back_arc(xy))));
-					SLOW_DEBUG_DO(assert(flow.back(xy) == flow(graph.back_arc(xy))));
-					return graph.capacity.back_capacity(xy) != flow.back(xy);
-				}
-				return graph.capacity(xy) != flow(xy);
+				return direction == target_side ? flow.can_push_back(xy) : flow.can_push(xy);
 			}
 		};
 
 		struct VisitEveryNode{
-			bool operator()(int /*x*/)const{ return true; }
+			bool operator()(int /*x*/, int /*xy*/)const{ return true; }
 		};
 
 		struct StopAtNodeInside{
 			const AssimilatedNodeSet&set;
 			int&hit;
 
-			bool operator()(int x)const{
+			bool operator()(int x, int /*xy*/)const{
 				if(!set.is_inside(x))
 					return true;
 				hit = x;
@@ -674,22 +709,27 @@ namespace flow_cutter{
 			void operator()(int /*xy*/)const{}
 		};
 
+		template<class Graph>
 		struct HasFlow{
+			Graph graph;
 			const UnitFlow&flow;
-			bool operator()(int xy)const{ return flow(xy) != 0; }
+			bool operator()(int xy)const{ return flow.flow(graph, xy) != 0; }
 		};
 
+		//! The growing side picked a direction when it chose which arcs it was
+		//! allowed to follow, and the augmenting path has to be pushed along the
+		//! same one.
 		template<class Graph>
 		struct AugmentFlowAlongArc{
 			const Graph&graph;
 			UnitFlow&flow;
-			bool decrease;
+			bool backward;
 
 			void operator()(int xy)const{
-				if(decrease)
-					flow.decrease(graph, xy);
+				if(backward)
+					flow.push_back(graph, xy);
 				else
-					flow.increase(graph, xy);
+					flow.push(graph, xy);
 			}
 		};
 
@@ -709,7 +749,7 @@ namespace flow_cutter{
 				reachable[my_source_side].grow(
 					graph, tmp, search_algo,
 					StopAtNodeInside{assimilated[my_target_side], target_hit},
-					FollowUnsaturatedArc<Graph>{graph, flow, my_source_side},
+					FollowUnsaturatedArc{flow, my_source_side},
 					IgnoreArc{}
 				);
 
@@ -731,7 +771,7 @@ namespace flow_cutter{
 				reachable[my_target_side].reset(assimilated[my_target_side]);
 				reachable[my_target_side].grow(
 					graph, tmp, search_algo, VisitEveryNode{},
-					FollowUnsaturatedArc<Graph>{graph, flow, my_target_side},
+					FollowUnsaturatedArc{flow, my_target_side},
 					IgnoreArc{}
 				);
 			}
@@ -746,8 +786,8 @@ namespace flow_cutter{
 
 			assimilated[side].grow(
 				graph, tmp, search_algo, VisitEveryNode{},
-				FollowUnsaturatedArc<Graph>{graph, flow, side},
-				IgnoreArc{}, HasFlow{flow}
+				FollowUnsaturatedArc{flow, side},
+				IgnoreArc{}, HasFlow<Graph>{graph, flow}
 			);
 			assimilated[side].shrink_cut_front(graph);
 		}
@@ -759,7 +799,7 @@ namespace flow_cutter{
 				if(!assimilated[source_side].is_inside(x) && !assimilated[target_side].is_inside(x)){
 					int flow_surplus = 0;
 					for(auto xy : graph.out_arc(x))
-						flow_surplus += flow(xy);
+						flow_surplus += flow.flow(graph, xy);
 					assert(flow_surplus == 0 && "Flow must be conserved outside of the assimilated sides");
 				}
 			#endif
@@ -817,7 +857,7 @@ namespace flow_cutter{
 		};
 
 		struct AlwaysSeeNode{
-			bool operator()(int /*x*/)const{ return true; }
+			bool operator()(int /*x*/, int /*xy*/)const{ return true; }
 		};
 
 		struct IgnoreArc{
@@ -872,8 +912,9 @@ namespace flow_cutter{
 			}
 		}
 
-		CutterStateDump dump_state()const{
-			return cutter.dump_state();
+		template<class Graph>
+		CutterStateDump dump_state(const Graph&graph)const{
+			return cutter.dump_state(graph);
 		}
 
 		template<class Graph, class SearchAlgorithm, class ScorePierceNode>
@@ -978,10 +1019,11 @@ namespace flow_cutter{
 			current_smaller_side_size = cutter_list[current_cutter_id].get_current_smaller_cut_side_size();
 		}
 
-		CutterStateDump dump_state()const{
+		template<class Graph>
+		CutterStateDump dump_state(const Graph&graph)const{
 			if(cutter_list.size() != 1)
 				throw std::runtime_error("Can only dump the cutter state if a single instance is run");
-			return cutter_list[0].dump_state();
+			return cutter_list[0].dump_state(graph);
 		}
 
 		template<class Graph, class SearchAlgorithm, class ScorePierceNode>
@@ -1197,7 +1239,7 @@ namespace flow_cutter{
 		}
 
 		CutterStateDump dump_state()const{
-			return cutter.dump_state();
+			return cutter.dump_state(graph);
 		}
 
 		int get_current_smaller_cut_side_size()const{

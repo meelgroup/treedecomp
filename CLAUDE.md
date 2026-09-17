@@ -46,8 +46,8 @@ enough for that. The id-func accessors in
 `src/flow-cutter-pace17/src/{array,tiny,id_multi}*.hpp` are the innermost
 FlowCutter loops and use `SLOW_DEBUG_DO(assert(...))` instead: their bounds
 checks alone cost ~25% of the runtime. Validate changes to those loops with a
-`-DSLOW_DEBUG` build, which also cross-checks the `back_capacity`/`UnitFlow::back`
-identities against the real `back_arc` lookup.
+`-DSLOW_DEBUG` build, and run it with `--tdsepsel 3` as well: that is what checks
+`UnitFlow`'s residual bookkeeping on a three-valued flow.
 
 ## Building
 
