@@ -78,6 +78,10 @@ public:
   void setWidth(int width) { tw = width; }
   int width() const { return tw; }
   void setNumGraphNodes(int n) { gnodes = n; }
+  // fraction of the graph left in the largest component once the
+  // centroid bag's vertices are removed, -1 if not computed
+  void setSplitFrac(double f) { split_frac = f; }
+  double splitFrac() const { return split_frac; }
   int centroid(int verb = 0);
   vector<int> distanceFromCentroid();
   double start_time;
@@ -92,6 +96,7 @@ private:
   vector<vector<int>> bags;
   int tw;
   int gnodes;
+  double split_frac = -1;
   int cent = -1;
 };
 }

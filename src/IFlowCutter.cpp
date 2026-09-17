@@ -627,6 +627,7 @@ public:
         << " narrowest tw seen: " << min_width << " src: " << src
         << " elapsed " << (cpu_time()-start_time) << " s" << endl;
     }
+    cand.setSplitFrac((double)split/node_count);
     td = std::move(cand);
     best_width = width;
     best_split = split;
