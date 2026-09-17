@@ -29,6 +29,8 @@ struct Config {
   // FlowCutter
   int64_t td_steps = 100000;
   int td_iters = 900;
+  int td_band_pct = 10;
+  int td_dense_pct = 30;
 
   // Graph cutoffs (mirror ganak conf.*)
   int td_max_edges = 70000;
@@ -41,6 +43,7 @@ struct Config {
   int verb = 1;
   string input;
   string dot_file;
+  string graph_file;
 };
 
 struct ParsedCnf {
@@ -162,6 +165,8 @@ int main(int argc, char** argv) {
 
   add_i64("--tdsteps", conf.td_steps,  "FlowCutter max steps");
   add_int("--tditers", conf.td_iters,  "FlowCutter iterations (restarts)");
+  add_int("--tdband", conf.td_band_pct, "How much wider than the narrowest TD seen a better-splitting candidate may be");
+  add_int("--tddense", conf.td_dense_pct, "width/nodes percentage above which the split decides the TD choice");
   add_int("--tdmaxedges", conf.td_max_edges, "Skip TD if primal has more than this many edges");
   add_dbl("--tdmaxdensity", conf.td_max_density, "Skip TD if primal density exceeds this");
   add_int("--tdmaxedgeratio", conf.td_max_edge_var_ratio, "Skip TD if edge/var ratio exceeds this");
@@ -169,6 +174,10 @@ int main(int argc, char** argv) {
   add_int("--tdcontract", conf.do_td_contract, "Contract non-projection vars (clique-elim) before running TD");
   add_int("--tdoptindep", conf.do_td_use_opt_indep, "Use 'c p optshow' (1) or 'c p show' (0) as projection set");
   add_int("-v", conf.verb, "Verbosity");
+  program.add_argument("--tdgraphout")
+      .action([&](const auto& a){ conf.graph_file = a; })
+      .default_value(string(""))
+      .help("Write the graph that gets decomposed as an edge list to this path");
   program.add_argument("--tdvis")
       .action([&](const auto& a){ conf.dot_file = a; })
       .default_value(string(""))
@@ -295,9 +304,19 @@ int main(int argc, char** argv) {
     cerr << "c WARNING: primal graph is not connected" << endl;
   }
 
+  if (!conf.graph_file.empty()) {
+    std::ofstream gout(conf.graph_file);
+    if (!gout) { cerr << "ERROR: cannot write '" << conf.graph_file << "'" << endl; return 1; }
+    gout << "p tdgraph " << primal_alt.numNodes() << " " << primal_alt.numEdges() << "\n";
+    const auto& adj = primal_alt.get_adj_list();
+    for (int i = 0; i < primal_alt.numNodes(); i++)
+      for (int nb : adj[i])
+        if (nb > i) gout << "e " << (i + 1) << " " << (nb + 1) << "\n";
+  }
+
   TWD::IFlowCutter fc(primal_alt.numNodes(), primal_alt.numEdges(), conf.verb);
   fc.importGraph(primal_alt);
-  auto td = fc.constructTD(conf.td_steps, conf.td_iters);
+  auto td = fc.constructTD(conf.td_steps, conf.td_iters, conf.td_band_pct, conf.td_dense_pct);
   const int tw = td.width();
   if (conf.verb >= 1) cout << "c TD width: " << tw << endl;
 
