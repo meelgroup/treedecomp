@@ -5,7 +5,10 @@
 #include <utility>
 #include "id_func.hpp"
 #include "array_id_func.hpp"
-#include "treedecomp_defs.hpp"
+// two levels up in the source tree and in the installed include
+// tree alike; a bare "treedecomp_defs.hpp" only resolves in-tree,
+// where -Isrc is on the command line, and breaks consumers
+#include "../../treedecomp_defs.hpp"
 
 template<int bit_count>
 struct TinyIntIDFunc{

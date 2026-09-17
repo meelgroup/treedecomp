@@ -6,7 +6,10 @@
 #include "range.hpp"
 #include "chain.hpp"
 #include <cassert>
-#include "treedecomp_defs.hpp"
+// two levels up in the source tree and in the installed include
+// tree alike; a bare "treedecomp_defs.hpp" only resolves in-tree,
+// where -Isrc is on the command line, and breaks consumers
+#include "../../treedecomp_defs.hpp"
 
 struct RangeIDIDMultiFunc{
 	int preimage_count()const{ return range_begin.preimage_count()-1; }
