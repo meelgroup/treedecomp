@@ -6,3 +6,4 @@ build/
 fuzz/out/
 fuzz/tmpdir/
 /examples
+/fuzz/__pycache__
